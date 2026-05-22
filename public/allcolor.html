@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>中国传统色彩 - 移动端适配版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 12px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.9rem;
+            margin-bottom: 8px;
+            font-weight: 500;
+            letter-spacing: -0.3px;
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* 移动端选项卡优化 */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: white;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 14px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #6c757d;
+            border: none;
+            background: none;
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .tab.active {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px 16px;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.25s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 移动端：色彩网格改为2列布局，卡片更易点击 */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 14px;
+        }
+
+        /* 针对小屏手机强制2列 */
+        @media (max-width: 480px) {
+            .color-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            .header h1 {
+                font-size: 1.6rem;
+            }
+            .tab {
+                font-size: 0.85rem;
+                padding: 12px 4px;
+            }
+        }
+
+        /* 中等屏幕自动调整 */
+        @media (min-width: 481px) and (max-width: 768px) {
+            .color-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (min-width: 769px) {
+            .color-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+
+        .color-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .color-card:active {
+            transform: scale(0.97);
+            transition: 0.05s;
+        }
+
+        .color-swatch {
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+            background-size: cover;
+        }
+
+        .color-info {
+            padding: 10px;
+        }
+
+        .color-name {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .color-code {
+            font-size: 0.7rem;
+            color: #6c757d;
+            font-family: monospace;
+        }
+
+        /* Toast 提示优化 - 移动端居中底部 */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.25s ease;
+            z-index: 1000;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.85);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        @media (max-width: 480px) {
+            .toast {
+                white-space: normal;
+                max-width: 80%;
+                text-align: center;
+                padding: 10px 18px;
+                font-size: 0.85rem;
+            }
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* 配色方案区域 - 移动端卡片布局优化 */
+        #palettes-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 640px) {
+            #palettes-container {
+                grid-template-columns: 1fr;
+                gap: 18px;
+            }
+        }
+
+        .palette-section {
+            margin-bottom: 0;
+            background: #fefefe;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: 0.2s;
+        }
+
+        .palette-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #334155;
+            margin: 0;
+            padding: 12px 16px 8px 16px;
+            background: #fafcff;
+            border-bottom: 1px solid #eef2f6;
+        }
+
+        .color-palette {
+            display: flex;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 0 0 16px 16px;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .color-palette:active {
+            transform: scale(0.98);
+        }
+
+        .palette-color {
+            flex: 1;
+            min-width: 0; /* 防止flex溢出 */
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            transition: 0.1s;
+        }
+
+        /* 移动端让颜色代码折行更友好 */
+        .palette-color span:first-child {
+            font-size: 0.7rem;
+            font-family: monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 30px;
+            backdrop-filter: blur(2px);
+        }
+
+        .palette-color span:last-child {
+            font-size: 0.6rem;
+            opacity: 0.9;
+            background: rgba(0,0,0,0.2);
+            padding: 2px 6px;
+            border-radius: 20px;
+        }
+
+        /* 说明文字区域移动端优化 */
+        .palettes-desc {
+            background: #f1f5f9;
+            margin: 0 16px 16px 16px;
+            padding: 12px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #475569;
+            line-height: 1.4;
+        }
+
+        .palettes-desc strong {
+            color: #667eea;
+        }
+
+        /* 增加触摸反馈 */
+        .color-card, .color-palette {
+            cursor: pointer;
+        }
+
+        /* 滚动条隐藏但保持功能 (移动端美观) */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 中国传统色彩</h1>
+            <p>轻触颜色块，复制色值</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="traditional">中国传统色</button>
+            <button class="tab" data-tab="chinese">中文色彩</button>
+            <button class="tab" data-tab="palettes">色彩搭配</button>
+        </div>
+
+        <div class="tab-content active" id="traditional">
+            <div class="color-grid" id="traditional-grid"></div>
+        </div>
+
+        <div class="tab-content" id="chinese">
+            <div class="color-grid" id="chinese-grid"></div>
+        </div>
+
+        <div class="tab-content" id="palettes">
+            <div class="palettes-desc">
+                💡 <strong>主色</strong>（第一色）品牌核心色 · <strong>辅助色</strong>（第二色）点缀强调 · <strong>中性色</strong>（第三色）文字/背景<br>
+                ✨ 点击配色块，一键复制整套色彩代码（三个色值）。
+            </div>
+            <div id="palettes-container"></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">🎨 颜色代码已复制</div>
+
+    <script>
+        // 原始数据保持不变（完全未修改接口/功能）
+        const traditionalColors = [
+            { name: '蔚蓝', hex: '#70f3ff' }, { name: '蓝', hex: '#44cef6' }, { name: '碧蓝', hex: '#3eede7' }, { name: '石青', hex: '#1685a9' }, { name: '靛青', hex: '#177cb0' },
+            { name: '靛蓝', hex: '#065279' }, { name: '花青', hex: '#003472' }, { name: '宝蓝', hex: '#4b5cc4' }, { name: '蓝灰色', hex: '#a1afc9' }, { name: '藏青', hex: '#2e4e7e' },
+            { name: '藏蓝', hex: '#3b2e7e' }, { name: '黛', hex: '#4a4266' }, { name: '黛绿', hex: '#426666' }, { name: '黛蓝', hex: '#425066' }, { name: '黛紫', hex: '#574266' },
+            { name: '紫色', hex: '#8d4bbb' }, { name: '紫酱', hex: '#815463' }, { name: '酱紫', hex: '#815476' }, { name: '紫檀', hex: '#4c221b' }, { name: '绀青', hex: '#003371' },
+            { name: '紫棠', hex: '#56004f' }, { name: '青莲', hex: '#801dae' }, { name: '群青', hex: '#4c8dae' }, { name: '雪青', hex: '#b0a4e3' }, { name: '丁香色', hex: '#cca4e3' },
+            { name: '藕色', hex: '#edd1d8' }, { name: '藕荷色', hex: '#e4c6d0' }, { name: '朱砂', hex: '#ff461f' }, { name: '火红', hex: '#ff2d51' }, { name: '朱膘', hex: '#f36838' },
+            { name: '妃色', hex: '#ed5736' }, { name: '洋红', hex: '#ff4777' }, { name: '品红', hex: '#f00056' }, { name: '粉红', hex: '#ffb3a7' }, { name: '桃红', hex: '#f47983' },
+            { name: '海棠红', hex: '#db5a6b' }, { name: '樱桃色', hex: '#c93756' }, { name: '酡颜', hex: '#f9906f' }, { name: '银红', hex: '#f05654' }, { name: '大红', hex: '#ff2121' },
+            { name: '石榴红', hex: '#f20c00' }, { name: '绛紫', hex: '#8c4356' }, { name: '绯红', hex: '#c83c23' }, { name: '胭脂', hex: '#9d2933' }, { name: '朱红', hex: '#ff4c00' },
+            { name: '丹', hex: '#ff4e20' }, { name: '彤', hex: '#f35336' }, { name: '酡红', hex: '#dc3023' }, { name: '炎', hex: '#ff3300' }, { name: '茜色', hex: '#cb3a56' },
+            { name: '绾', hex: '#a98175' }, { name: '檀', hex: '#b36d61' }, { name: '嫣红', hex: '#ef7a82' }, { name: '枣红', hex: '#c32136' }, { name: '殷红', hex: '#be002f' },
+            { name: '赫赤', hex: '#c91f37' }, { name: '银朱', hex: '#bf242a' }, { name: '赤', hex: '#c3272b' }, { name: '栗色', hex: '#60281e' }, { name: '玄色', hex: '#622a1d' },
+            { name: '松花色', hex: '#bce672' }, { name: '柳黄', hex: '#c9dd22' }, { name: '嫩绿', hex: '#bddd22' }, { name: '柳绿', hex: '#afdd22' }, { name: '葱黄', hex: '#a3d900' },
+            { name: '葱绿', hex: '#9ed900' }, { name: '豆绿', hex: '#9ed048' }, { name: '豆青', hex: '#96ce54' }, { name: '油绿', hex: '#00bc12' }, { name: '葱倩', hex: '#0eb83a' },
+            { name: '葱青', hex: '#0eb83a' }, { name: '青葱', hex: '#0aa344' }, { name: '石绿', hex: '#16a951' }, { name: '松柏绿', hex: '#21a675' }, { name: '松花绿', hex: '#057748' },
+            { name: '绿沈', hex: '#0c8918' }, { name: '绿色', hex: '#00e500' }, { name: '草绿', hex: '#40de5a' }, { name: '青翠', hex: '#00e079' }, { name: '青色', hex: '#00e09e' },
+            { name: '翡翠色', hex: '#3de1ad' }, { name: '碧绿', hex: '#2add9c' }, { name: '玉色', hex: '#2edfa3' }, { name: '缥', hex: '#7fecad' }, { name: '艾绿', hex: '#a4e2c6' },
+            { name: '碧色', hex: '#1bd1a5' }, { name: '青碧', hex: '#48c0a3' }, { name: '铜绿', hex: '#549688' }, { name: '竹青', hex: '#789262' }, { name: '墨灰', hex: '#758a99' },
+            { name: '墨色', hex: '#50616d' }, { name: '鸦青', hex: '#424c50' }, { name: '黯', hex: '#41555d' }, { name: '樱草色', hex: '#eaff56' }, { name: '鹅黄', hex: '#fff143' },
+            { name: '鸭黄', hex: '#faff72' }, { name: '杏黄', hex: '#ffa631' }, { name: '橙黄', hex: '#ffa400' }, { name: '橙色', hex: '#fa8c35' }, { name: '杏红', hex: '#ff8c31' },
+            { name: '橘黄', hex: '#ff8936' }, { name: '橘红', hex: '#ff7500' }, { name: '藤黄', hex: '#ffb61e' }, { name: '姜黄', hex: '#ffc773' }, { name: '雌黄', hex: '#ffc64b' },
+            { name: '赤金', hex: '#f2be45' }, { name: '缃色', hex: '#f0c239' }, { name: '雄黄', hex: '#e9bb1d' }, { name: '秋香色', hex: '#d9b611' }, { name: '金色', hex: '#eacd76' },
+            { name: '牙色', hex: '#eedeb0' }, { name: '枯黄', hex: '#d3b17d' }, { name: '黄栌', hex: '#e29c45' }, { name: '乌金', hex: '#a78e44' }, { name: '昏黄', hex: '#c89b40' },
+            { name: '棕黄', hex: '#ae7000' }, { name: '琥珀', hex: '#ca6924' }, { name: '棕色', hex: '#b25d25' }, { name: '茶色', hex: '#b35c44' }, { name: '棕红', hex: '#9b4400' },
+            { name: '赭', hex: '#9c5333' }, { name: '驼色', hex: '#a88462' }, { name: '秋色', hex: '#896c39' }, { name: '棕绿', hex: '#827100' }, { name: '褐色', hex: '#6e511e' },
+            { name: '棕黑', hex: '#7c4b00' }, { name: '赭色', hex: '#955539' }, { name: '赭石', hex: '#845a33' }, { name: '精白', hex: '#ffffff' }, { name: '银白', hex: '#e9e7ef' },
+            { name: '铅白', hex: '#f0f0f4' }, { name: '霜色', hex: '#e9f1f6' }, { name: '雪白', hex: '#f0fcff' }, { name: '莹白', hex: '#e3f9fd' }, { name: '月白', hex: '#d6ecf0' },
+            { name: '象牙白', hex: '#fffbf0' }, { name: '缟', hex: '#f2ecde' }, { name: '鱼肚白', hex: '#fcefe8' }, { name: '白粉', hex: '#fff2df' }, { name: '荼白', hex: '#f3f9f1' },
+            { name: '鸭卵青', hex: '#e0eee8' }, { name: '素', hex: '#e0f0e9' }, { name: '青白', hex: '#c0ebd7' }, { name: '蟹壳青', hex: '#bbcdc5' }, { name: '花白', hex: '#c2ccd0' },
+            { name: '老银', hex: '#bacac6' }, { name: '灰色', hex: '#808080' }, { name: '苍色', hex: '#75878a' }, { name: '水色', hex: '#88ada6' }, { name: '黝', hex: '#6b6882' },
+            { name: '乌色', hex: '#725e82' }, { name: '玄青', hex: '#3d3b4f' }, { name: '乌黑', hex: '#392f41' }, { name: '黎', hex: '#75664d' }, { name: '黧', hex: '#5d513c' },
+            { name: '黝黑', hex: '#665757' }, { name: '缁色', hex: '#493131' }, { name: '煤黑', hex: '#312520' }, { name: '漆黑', hex: '#161823' }, { name: '黑色', hex: '#000000' }
+        ];
+
+        const chineseColors = [
+            { name: '鸨色', hex: '#f7acbc' }, { name: '踯躅色', hex: '#ef5b9c' }, { name: '桜色', hex: '#feeeed' }, { name: '蔷薇色', hex: '#f05b72' }, { name: '韩红', hex: '#f15b6c' },
+            { name: '珊瑚色', hex: '#f8aba6' }, { name: '红梅色', hex: '#f69c9f' }, { name: '桃色', hex: '#f58f98' }, { name: '薄柿', hex: '#ca8687' }, { name: '薄红梅', hex: '#f391a9' },
+            { name: '曙色', hex: '#bd6758' }, { name: '红色', hex: '#d71345' }, { name: '赤丹', hex: '#d64f44' }, { name: '红赤', hex: '#d93a49' }, { name: '臙脂色', hex: '#b3424a' },
+            { name: '真赭', hex: '#c76968' }, { name: '今様色', hex: '#bb505d' }, { name: '梅染', hex: '#987165' }, { name: '退红色', hex: '#ac6767' }, { name: '苏芳', hex: '#973c3f' },
+            { name: '茜色', hex: '#b22c46' }, { name: '红', hex: '#a7324a' }, { name: '银朱', hex: '#aa363d' }, { name: '赤', hex: '#ed1941' }, { name: '朱色', hex: '#f26522' },
+            { name: '洗朱', hex: '#d2553d' }, { name: '红桦色', hex: '#b4534b' }, { name: '红绯', hex: '#ef4136' }, { name: '桦色', hex: '#c63c26' }, { name: '铅丹色', hex: '#f3715c' },
+            { name: '赭', hex: '#a7573b' }, { name: '绯色', hex: '#aa2116' }, { name: '丹', hex: '#b64533' }, { name: '土', hex: '#b54334' }, { name: '焦香', hex: '#853f04' },
+            { name: '真红', hex: '#840228' }, { name: '绯', hex: '#7a1723' }, { name: '红海老茶', hex: '#a03939' }, { name: '浅苏芳', hex: '#8a2e3b' }, { name: '鸢色', hex: '#8e453f' },
+            { name: '小豆色', hex: '#8f4b4a' }, { name: '弁柄色', hex: '#892f1b' }, { name: '栗梅', hex: '#6b2c25' }, { name: '海老茶', hex: '#733a31' }, { name: '深绯', hex: '#54211d' },
+            { name: '赤铜色', hex: '#78331e' }, { name: '赤褐色', hex: '#53261f' }, { name: '金赤', hex: '#f15a22' }, { name: '赤茶', hex: '#b4533c' }, { name: '赤锖色', hex: '#84331f' },
+            { name: '黄丹', hex: '#f47a55' }, { name: '赤橙', hex: '#f15a22' }, { name: '柿色', hex: '#f3704b' }, { name: '肉桂色', hex: '#da765b' }, { name: '炼瓦色', hex: '#ae5039' },
+            { name: '锖色', hex: '#6a3427' }, { name: '桧皮色', hex: '#8f4b38' }, { name: '栗色', hex: '#8e3e1f' }, { name: '黄赤', hex: '#f36c21' }, { name: '代赭', hex: '#b4532a' },
+            { name: '骆驼色', hex: '#b7704f' }, { name: '黄茶', hex: '#de773f' }, { name: '洗柿', hex: '#c99979' }, { name: '赤白橡', hex: '#deab8a' }, { name: '肌色', hex: '#fedcbd' },
+            { name: '橙色', hex: '#f47920' }, { name: '灰茶', hex: '#905a3d' }, { name: '茶色', hex: '#8f4b2e' }, { name: '桦茶色', hex: '#87481f' }, { name: '枯茶', hex: '#5f3c23' },
+            { name: '焦茶', hex: '#6b473c' }, { name: '柑子色', hex: '#faa755' }, { name: '杏色', hex: '#fab27b' }, { name: '蜜柑色', hex: '#f58220' }, { name: '褐色', hex: '#843900' },
+            { name: '路考茶', hex: '#905d1d' }, { name: '饴色', hex: '#8a5d19' }, { name: '丁子色', hex: '#8c531b' }, { name: '丁子茶', hex: '#826858' }, { name: '黄栌', hex: '#64492b' },
+            { name: '土器色', hex: '#ae6642' }, { name: '黄枯茶', hex: '#56452d' }, { name: '狐色', hex: '#96582a' }, { name: '黄橡', hex: '#705628' }, { name: '银煤竹', hex: '#4a3113' },
+            { name: '涅色', hex: '#412f1f' }, { name: '胡桃色', hex: '#845538' }, { name: '香色', hex: '#8e7437' }, { name: '国防色', hex: '#69541b' }, { name: '练色', hex: '#d5c59f' },
+            { name: '肉色', hex: '#cd9a5b' }, { name: '人色', hex: '#cd9a5b' }, { name: '土色', hex: '#b36d41' }, { name: '小麦色', hex: '#df9464' }, { name: '琥珀色', hex: '#b76f40' },
+            { name: '木兰色', hex: '#ad8b3d' }, { name: '栀子色', hex: '#dea32c' }, { name: '朽叶', hex: '#d1923f' }, { name: '萱草色', hex: '#c88400' }, { name: '黄金', hex: '#c37e00' },
+            { name: '金色', hex: '#c37e00' }, { name: '金茶', hex: '#e0861a' }, { name: '卵色', hex: '#ffce7b' }, { name: '山吹色', hex: '#fcaf17' }, { name: '黄土色', hex: '#ba8448' },
+            { name: '朽叶色', hex: '#896a45' }, { name: '空五倍子色', hex: '#76624c' }, { name: '莺茶', hex: '#6d5826' }, { name: '向日葵色', hex: '#ffc20e' }, { name: '郁金色', hex: '#fdb933' },
+            { name: '砂色', hex: '#d3c6a6' }, { name: '芥子色', hex: '#c7a252' }, { name: '淡黄', hex: '#dec674' }, { name: '亜麻色', hex: '#b69968' }, { name: '枯色', hex: '#c1a173' }
+        ];
+
+        const palettes = [
+            { title: '清新自然', colors: ['#FFFFCC', '#CCFFFF', '#FFCCCC'] }, { title: '雅致灰调', colors: ['#99CCCC', '#FFCC99', '#FFCCCC'] }, { title: '粉紫梦境', colors: ['#FF9999', '#996699', '#FFCCCC'] },
+            { title: '大地色系', colors: ['#CC9999', '#FFFFCC', '#CCCC99'] }, { title: '柔和暖阳', colors: ['#FFCCCC', '#FFFF99', '#CCCCFF'] }, { title: '海蓝印象', colors: ['#0099CC', '#CCCCCC', '#FF6666'] },
+            { title: '珊瑚橘粉', colors: ['#FF9966', '#FF6666', '#FFCCCC'] }, { title: '木质复古', colors: ['#CC9966', '#666666', '#CC9999'] }, { title: '翠绿春意', colors: ['#FF6666', '#FFFF66', '#99CC66'] },
+            { title: '深海静寂', colors: ['#CC3333', '#CCCCCC', '#003366'] }, { title: '紫罗兰夜', colors: ['#993333', '#CCCC00', '#663366'] }, { title: '燕麦拿铁', colors: ['#CCCC99', '#666666', '#CC9999'] },
+            { title: '柠檬水岸', colors: ['#FF6666', '#FFFF00', '#0066CC'] }, { title: '红黑经典', colors: ['#CC0033', '#333333', '#CCCC00'] }, { title: '森林与酒', colors: ['#336633', '#990033', '#FFCC99'] }
+        ];
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg || '🎨 颜色代码已复制';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 1800);
+        }
+
+        function copyToClipboard(text, customMsg) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(customMsg || `✅ 已复制: ${text}`);
+            }).catch(() => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast(customMsg || `📋 已复制: ${text}`);
+            });
+        }
+
+        function getContrastColor(hex) {
+            let r = parseInt(hex.slice(1, 3), 16);
+            let g = parseInt(hex.slice(3, 5), 16);
+            let b = parseInt(hex.slice(5, 7), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            return brightness > 128 ? '#1e1e2f' : '#ffffff';
+        }
+
+        function createColorCard(color) {
+            const card = document.createElement('div');
+            card.className = 'color-card';
+            card.onclick = () => copyToClipboard(color.hex, `🎨 ${color.name} → ${color.hex}`);
+            const textColor = getContrastColor(color.hex);
+            card.innerHTML = `
+                <div class="color-swatch" style="background: ${color.hex}; color: ${textColor};">${color.hex}</div>
+                <div class="color-info">
+                    <div class="color-name">${color.name}</div>
+                    <div class="color-code">${color.hex}</div>
+                </div>
+            `;
+            return card;
+        }
+
+        function createPalette(palette) {
+            const section = document.createElement('div');
+            section.className = 'palette-section';
+            const title = document.createElement('div');
+            title.className = 'palette-title';
+            title.textContent = palette.title;
+            const paletteDiv = document.createElement('div');
+            paletteDiv.className = 'color-palette';
+            paletteDiv.onclick = () => {
+                const allCodes = palette.colors.join('  ');
+                copyToClipboard(allCodes, `🎨 配色方案「${palette.title}」已复制: ${allCodes}`);
+            };
+            const roles = ['主色', '辅色', '中性'];
+            palette.colors.forEach((color, idx) => {
+                const colorDiv = document.createElement('div');
+                colorDiv.className = 'palette-color';
+                colorDiv.style.background = color;
+                colorDiv.style.color = getContrastColor(color);
+                const codeSpan = document.createElement('span');
+                codeSpan.textContent = color;
+                const roleSpan = document.createElement('span');
+                roleSpan.textContent = roles[idx] || '';
+                colorDiv.appendChild(codeSpan);
+                colorDiv.appendChild(roleSpan);
+                paletteDiv.appendChild(colorDiv);
+            });
+            section.appendChild(title);
+            section.appendChild(paletteDiv);
+            return section;
+        }
+
+        function init() {
+            const traditionalGrid = document.getElementById('traditional-grid');
+            traditionalColors.forEach(c => traditionalGrid.appendChild(createColorCard(c)));
+            const chineseGrid = document.getElementById('chinese-grid');
+            chineseColors.forEach(c => chineseGrid.appendChild(createColorCard(c)));
+            const palettesContainer = document.getElementById('palettes-container');
+            palettes.forEach(p => palettesContainer.appendChild(createPalette(p)));
+        }
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                const tabId = tab.dataset.tab;
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,2444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>用户中心 - 文件浏览器</title>
+    <style>
+        :root {
+            --primary: #0066cc;
+            --primary-hover: #0052a3;
+            --danger: #dc3545;
+            --danger-hover: #c82333;
+            --success: #28a745;
+            --success-hover: #218838;
+            --warning: #ffc107;
+            --warning-hover: #e0a800;
+            --info: #17a2b8;
+            --info-hover: #138496;
+            --bg: #f0f0f0;
+            --card-bg: #ffffff;
+            --text: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border: #dee2e6;
+            --input-bg: #ffffff;
+            --shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+            --radius-sm: 4px;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+            margin: 0;
+            padding: 10px;
+            padding-bottom: calc(10px + var(--safe-bottom));
+            background-color: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+
+        .container { 
+            max-width: 1200px; 
+            width: 100%;
+            margin: 0 auto; 
+        }
+
+        /* 头部样式 */
+        .header {
+            background-color: var(--card-bg);
+            padding: 15px 16px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 {
+            color: var(--text);
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .header h1 span {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: normal;
+            white-space: nowrap;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .username {
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 14px;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .badge {
+            padding: 3px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .badge.admin {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.user {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger-hover);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: var(--success-hover);
+        }
+
+        .btn-warning {
+            background-color: var(--warning);
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background-color: var(--warning-hover);
+        }
+
+        .btn-info {
+            background-color: var(--info);
+            color: white;
+        }
+
+        .btn-info:hover {
+            background-color: var(--info-hover);
+        }
+
+        .btn-sm {
+            padding: 5px 8px;
+            font-size: 11px;
+            min-height: 28px;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            padding: 16px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card h3 {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .stat-progress {
+            margin-top: 8px;
+            height: 4px;
+            background-color: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .stat-progress-bar {
+            height: 100%;
+            background-color: var(--primary);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .stat-detail {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .stat-detail-highlight {
+            color: var(--success);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        /* 用户信息卡片 */
+        .profile-card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px 16px;
+            margin-bottom: 12px;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .profile-title h2 {
+            color: var(--text);
+            margin-bottom: 4px;
+            font-size: 20px;
+        }
+
+        .profile-title p {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .profile-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 10px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        /* 密码修改表单 */
+        .password-section {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px 16px;
+        }
+
+        .section-title {
+            color: var(--text);
+            font-size: 16px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text);
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .form-group input {
+            width: 100%;
+            max-width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            transition: border 0.2s;
+            background-color: var(--input-bg);
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 42px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        .form-group .hint {
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .password-requirements {
+            margin-top: 12px;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: var(--radius-sm);
+        }
+
+        .password-requirements p {
+            margin: 4px 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .requirement {
+            margin: 4px 0;
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .requirement.met {
+            color: var(--success);
+        }
+
+        /* 标签页 */
+        .tabs {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .tab-header {
+            display: flex;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .tab-header::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tab-btn {
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            flex-shrink: 0;
+            touch-action: manipulation;
+        }
+
+        .tab-btn:active {
+            background-color: rgba(0, 102, 204, 0.05);
+        }
+
+        .tab-btn:hover {
+            color: var(--primary);
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 16px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 表格样式 - 移动端优化 */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -16px;
+            padding: 0 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 8px;
+            background-color: #f8f9fa;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 12px;
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            font-size: 13px;
+        }
+
+        tr:active {
+            background-color: #f8f9fa;
+        }
+
+        /* 桌面端 hover */
+        @media (hover: hover) {
+            tr:hover {
+                background-color: #f8f9fa;
+            }
+        }
+
+        .status-badge {
+            padding: 3px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        /* 操作按钮组 */
+        .action-group {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        /* 搜索和筛选 */
+        .filters {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .filter-group label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            background-color: var(--input-bg);
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 38px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        /* 分页 */
+        .pagination {
+            margin-top: 16px;
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            background-color: var(--card-bg);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            color: var(--primary);
+            font-size: 12px;
+            touch-action: manipulation;
+            min-width: 32px;
+            text-align: center;
+        }
+
+        .page-btn:active {
+            background-color: #e9ecef;
+        }
+
+        .page-btn.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .page-btn:disabled {
+            color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* 加载状态 */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 消息提示 - 移动端优化 */
+        .message {
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-size: 14px;
+            text-align: center;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .message.success {
+            display: block;
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            display: block;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            display: block;
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .message.warning {
+            display: block;
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        /* 模态框 - 移动端优化 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1050;
+            justify-content: center;
+            align-items: flex-end;
+            padding: 0;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            border-radius: 16px 16px 0 0;
+            width: 100%;
+            max-height: 85vh;
+            max-height: 85dvh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background-color: var(--card-bg);
+            z-index: 1;
+        }
+
+        .modal-header h3 {
+            color: var(--text);
+            font-size: 17px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px 8px;
+            touch-action: manipulation;
+            min-width: 40px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:active {
+            color: var(--text);
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        .modal-footer {
+            padding: 12px 16px;
+            padding-bottom: calc(12px + var(--safe-bottom));
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            position: sticky;
+            bottom: 0;
+            background-color: var(--card-bg);
+        }
+
+        /* 未登录提示 */
+        .login-prompt {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin: 20px auto;
+            max-width: 400px;
+        }
+
+        .login-prompt.active {
+            display: block;
+        }
+
+        .login-prompt-icon {
+            font-size: 56px;
+            margin-bottom: 16px;
+            color: var(--text-muted);
+        }
+
+        .login-prompt h2 {
+            color: var(--text);
+            margin-bottom: 12px;
+            font-size: 22px;
+        }
+
+        .login-prompt p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .login-prompt .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .login-prompt .btn-large {
+            padding: 12px 24px;
+            font-size: 15px;
+            min-height: 44px;
+        }
+
+        /* 内容区域 */
+        .content-wrapper {
+            display: none;
+        }
+
+        .content-wrapper.active {
+            display: block;
+        }
+
+        /* 数据库详情样式 */
+        .db-details {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .db-details div {
+            margin-bottom: 4px;
+        }
+        .db-details .ok {
+            color: var(--success);
+        }
+        .db-details .error {
+            color: var(--danger);
+        }
+
+        /* 系统信息行 */
+        .system-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 13px;
+            gap: 12px;
+        }
+
+        .system-info-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .system-info-label {
+            color: var(--text);
+            flex-shrink: 0;
+        }
+
+        .system-info-value {
+            color: var(--primary);
+            font-size: 12px;
+            word-break: break-all;
+            text-align: right;
+        }
+
+        /* 响应式设计 - 小屏幕 */
+        @media (max-width: 640px) {
+            body {
+                padding: 8px;
+                padding-bottom: calc(8px + var(--safe-bottom));
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+                padding: 12px;
+            }
+
+            .header h1 {
+                font-size: 16px;
+                justify-content: center;
+            }
+
+            .user-info {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .username {
+                max-width: 80px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .stat-card {
+                padding: 14px;
+            }
+
+            .stat-value {
+                font-size: 24px;
+            }
+
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .profile-avatar {
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+
+            .profile-title h2 {
+                font-size: 18px;
+            }
+
+            .profile-info {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .tab-btn {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            .tab-content {
+                padding: 12px;
+            }
+
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group label {
+                margin-bottom: 4px;
+            }
+
+            .btn {
+                font-size: 12px;
+                padding: 7px 12px;
+                min-height: 32px;
+            }
+
+            .btn-sm {
+                padding: 4px 6px;
+                font-size: 10px;
+                min-height: 26px;
+            }
+
+            .action-group {
+                flex-direction: column;
+                gap: 3px;
+            }
+
+            .action-group .btn-sm {
+                width: 100%;
+            }
+
+            .modal-content {
+                border-radius: 12px 12px 0 0;
+            }
+
+            .message {
+                top: 8px;
+                left: 8px;
+                right: 8px;
+                font-size: 13px;
+            }
+
+            .pagination {
+                gap: 2px;
+            }
+
+            .page-btn {
+                padding: 5px 8px;
+                font-size: 11px;
+                min-width: 28px;
+            }
+
+            .system-info-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
+
+            .system-info-value {
+                text-align: left;
+            }
+        }
+
+        /* 平板设备 */
+        @media (min-width: 641px) and (max-width: 1024px) {
+            body {
+                padding: 12px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+
+            .profile-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .modal-content {
+                border-radius: 12px;
+                max-width: 500px;
+                margin: auto;
+                width: 90%;
+            }
+
+            .modal {
+                align-items: center;
+            }
+        }
+
+        /* 桌面设备 */
+        @media (min-width: 1025px) {
+            body {
+                padding: 20px;
+            }
+
+            .modal {
+                align-items: center;
+            }
+
+            .modal-content {
+                border-radius: 8px;
+                max-width: 500px;
+                width: 90%;
+                animation: none;
+            }
+
+            .header {
+                padding: 20px 30px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .tab-content {
+                padding: 30px;
+            }
+        }
+
+        /* 深色模式支持 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a2e;
+                --card-bg: #16213e;
+                --text: #e0e0e0;
+                --text-secondary: #a0a0a0;
+                --text-muted: #707070;
+                --border: #2a2a4a;
+                --input-bg: #1a1a2e;
+                --shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            }
+
+            .form-group input,
+            .filter-group input,
+            .filter-group select {
+                background-color: #1a1a2e;
+                color: #e0e0e0;
+                border-color: #2a2a4a;
+            }
+
+            .info-item,
+            .password-requirements,
+            .tab-header {
+                background-color: #1a1a2e;
+            }
+
+            .stat-progress {
+                background-color: #2a2a4a;
+            }
+
+            tr:hover,
+            tr:active {
+                background-color: #1a1a2e;
+            }
+
+            .badge.admin {
+                background-color: #3d3200;
+                color: #ffc107;
+            }
+
+            .badge.user {
+                background-color: #003d4d;
+                color: #17a2b8;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 未登录提示 -->
+    <div class="login-prompt active" id="loginPrompt">
+        <div class="login-prompt-icon">🔒</div>
+        <h2>请先登录</h2>
+        <p>您需要登录后才能访问用户中心。<br>请点击下方按钮前往登录页面。</p>
+        <div class="btn-group">
+            <button class="btn btn-primary btn-large" onclick="goToLogin()">前往登录</button>
+            <button class="btn btn-info btn-large" onclick="location.reload()">刷新页面</button>
+        </div>
+    </div>
+
+    <!-- 内容区域（登录后可见） -->
+    <div class="content-wrapper" id="contentWrapper">
+        <div class="container">
+            <!-- 头部 -->
+            <div class="header">
+                <h1>
+                    👤 用户中心
+                    <span id="version">v1.0.0</span>
+                </h1>
+                <div class="user-info" id="userInfo">
+                    <span class="username" id="username"></span>
+                    <span class="badge" id="userRole"></span>
+                    <button class="btn btn-danger btn-sm" onclick="handleLogout()">退出</button>
+                </div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <!-- 标签页 -->
+            <div class="tabs">
+                <div class="tab-header">
+                    <button class="tab-btn active" onclick="switchTab('profile')">个人资料</button>
+                    <button class="tab-btn" onclick="switchTab('users')">用户管理</button>
+                    <button class="tab-btn" onclick="switchTab('audit')">操作日志</button>
+                    <button class="tab-btn" onclick="switchTab('system')">系统信息</button>
+                </div>
+
+                <!-- 个人资料标签页 -->
+                <div class="tab-content active" id="tab-profile">
+                    <div class="profile-card">
+                        <div class="profile-header">
+                            <div class="profile-avatar" id="userAvatar"></div>
+                            <div class="profile-title">
+                                <h2 id="profileUsername"></h2>
+                                <p id="profileRole"></p>
+                            </div>
+                        </div>
+                        
+                        <div class="profile-info">
+                            <div class="info-item">
+                                <div class="info-label">用户ID</div>
+                                <div class="info-value" id="userId"></div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">注册时间</div>
+                                <div class="info-value" id="userCreatedAt"></div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">最后登录</div>
+                                <div class="info-value" id="userLastLogin"></div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">最后登录IP</div>
+                                <div class="info-value" id="userLastLoginIp"></div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">账户状态</div>
+                                <div class="info-value">
+                                    <span class="status-badge status-active" id="userStatus">活跃</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="password-section">
+                        <h3 class="section-title">修改密码</h3>
+                        <form id="changePasswordForm" onsubmit="event.preventDefault(); changeOwnPassword();">
+                            <div class="form-group">
+                                <label>当前密码</label>
+                                <input type="password" id="currentPassword" required autocomplete="current-password">
+                            </div>
+                            <div class="form-group">
+                                <label>新密码</label>
+                                <input type="password" id="newPassword" required onkeyup="checkOwnPasswordStrength()" autocomplete="new-password">
+                            </div>
+                            <div class="form-group">
+                                <label>确认新密码</label>
+                                <input type="password" id="confirmPassword" required onkeyup="checkPasswordMatch()" autocomplete="new-password">
+                            </div>
+                            
+                            <div class="password-requirements" id="passwordRequirements">
+                                <p>密码要求：</p>
+                                <div class="requirement" id="reqLength">❌ 至少8个字符</div>
+                                <div class="requirement" id="reqUpper">❌ 至少1个大写字母</div>
+                                <div class="requirement" id="reqLower">❌ 至少1个小写字母</div>
+                                <div class="requirement" id="reqDigit">❌ 至少1个数字</div>
+                                <div class="requirement" id="reqMatch">❌ 两次密码不一致</div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" id="changePasswordBtn">修改密码</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 用户管理标签页 -->
+                <div class="tab-content" id="tab-users">
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>搜索用户:</label>
+                            <input type="text" id="userSearch" placeholder="用户名..." onkeyup="filterUsers()">
+                        </div>
+                        <button class="btn btn-success" onclick="showCreateUserModal()">创建新用户</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="usersTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>用户名</th>
+                                    <th>状态</th>
+                                    <th>创建时间</th>
+                                    <th>最后登录</th>
+                                    <th>IP</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 操作日志标签页 -->
+                <div class="tab-content" id="tab-audit">
+                    <div class="filters">
+                        <div class="filter-group">
+                            <label>日志类型:</label>
+                            <select id="auditType" onchange="switchAuditType()">
+                                <option value="file">文件操作</option>
+                                <option value="login">登录尝试</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>用户名:</label>
+                            <input type="text" id="auditUsername" placeholder="过滤用户名..." onkeyup="loadAuditLogs()">
+                        </div>
+                        <div class="filter-group" id="operationFilter">
+                            <label>操作:</label>
+                            <input type="text" id="auditOperation" placeholder="操作类型..." onkeyup="loadAuditLogs()">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="auditTable">
+                            <thead id="auditTableHeader"></thead>
+                            <tbody id="auditTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="auditPagination"></div>
+                </div>
+
+                <!-- 系统信息标签页 -->
+                <div class="tab-content" id="tab-system">
+                    <div class="stats-grid" style="grid-template-columns: 1fr;">
+                        <div class="stat-card">
+                            <h3>系统状态</h3>
+                            <div style="margin-top: 12px;">
+                                <div class="system-info-row">
+                                    <span class="system-info-label">服务器状态:</span>
+                                    <span class="badge" id="serverStatus">检查中...</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">数据库状态:</span>
+                                    <span class="badge" id="dbStatus">检查中...</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">文件系统:</span>
+                                    <span class="badge" id="filesystemStatus">检查中...</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">SSL/HTTPS:</span>
+                                    <span class="badge" id="sslStatus">检查中...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <h3>系统配置</h3>
+                            <div style="margin-top: 12px;">
+                                <div class="system-info-row">
+                                    <span class="system-info-label">数据库路径:</span>
+                                    <span class="system-info-value" id="dbPath"></span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">文件系统根目录:</span>
+                                    <span class="system-info-value" id="filesystemRoot">未配置</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">SSL证书:</span>
+                                    <span class="system-info-value" id="sslCert">-</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">会话有效期:</span>
+                                    <span class="system-info-value" id="sessionLifetime">24 小时</span>
+                                </div>
+                                <div class="system-info-row">
+                                    <span class="system-info-label">密码策略:</span>
+                                    <span class="system-info-value">8位以上，含大小写字母和数字</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card" id="dbDetailsCard" style="display: none;">
+                            <h3>数据库详情</h3>
+                            <div class="db-details" id="dbDetails"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="message" class="message"></div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- 创建用户模态框 -->
+    <div class="modal" id="createUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>创建新用户</h3>
+                <button class="modal-close" onclick="closeModal('createUserModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm" onsubmit="event.preventDefault();">
+                    <div class="form-group">
+                        <label for="newUsername">用户名 <span style="color: #dc3545;">*</span></label>
+                        <input type="text" id="newUsername" placeholder="请输入用户名" required minlength="3">
+                        <div class="hint">至少3个字符，只能包含字母、数字和下划线</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="newUserPassword">密码 <span style="color: #dc3545;">*</span></label>
+                        <input type="password" id="newUserPassword" placeholder="请输入密码" required onkeyup="checkPasswordStrength()">
+                        <div class="hint">至少8个字符，必须包含大小写字母和数字</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmUserPassword">确认密码 <span style="color: #dc3545;">*</span></label>
+                        <input type="password" id="confirmUserPassword" placeholder="请再次输入密码" required onkeyup="checkCreatePasswordMatch()">
+                    </div>
+                    
+                    <div class="password-requirements" id="createPasswordRequirements">
+                        <p>密码要求：</p>
+                        <div class="requirement" id="createReqLength">❌ 至少8个字符</div>
+                        <div class="requirement" id="createReqUpper">❌ 至少1个大写字母</div>
+                        <div class="requirement" id="createReqLower">❌ 至少1个小写字母</div>
+                        <div class="requirement" id="createReqDigit">❌ 至少1个数字</div>
+                        <div class="requirement" id="createReqMatch">❌ 两次密码不一致</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="closeModal('createUserModal')">取消</button>
+                <button class="btn btn-success" onclick="createUser()" id="createUserBtn">创建用户</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理员修改密码模态框 -->
+    <div class="modal" id="adminChangePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>修改用户密码</h3>
+                <button class="modal-close" onclick="closeModal('adminChangePasswordModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="adminChangePasswordForm" onsubmit="event.preventDefault();">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" id="adminChangeUsername" readonly disabled style="background-color: #f8f9fa; opacity: 0.7;">
+                    </div>
+                    <div class="form-group">
+                        <label>新密码 <span style="color: #dc3545;">*</span></label>
+                        <input type="password" id="adminChangePassword" placeholder="请输入新密码" required onkeyup="checkAdminPasswordStrength()">
+                    </div>
+                    <div class="form-group">
+                        <label>确认新密码 <span style="color: #dc3545;">*</span></label>
+                        <input type="password" id="adminConfirmPassword" placeholder="请再次输入新密码" required onkeyup="checkAdminPasswordMatch()">
+                    </div>
+                    <div class="password-requirements" id="adminPasswordRequirements">
+                        <p>密码要求：</p>
+                        <div class="requirement" id="adminReqLength">❌ 至少8个字符</div>
+                        <div class="requirement" id="adminReqUpper">❌ 至少1个大写字母</div>
+                        <div class="requirement" id="adminReqLower">❌ 至少1个小写字母</div>
+                        <div class="requirement" id="adminReqDigit">❌ 至少1个数字</div>
+                        <div class="requirement" id="adminReqMatch">❌ 两次密码不一致</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" onclick="closeModal('adminChangePasswordModal')">取消</button>
+                <button class="btn btn-warning" onclick="adminChangeUserPassword()" id="adminChangePasswordBtn">确认修改</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentUser = null;
+        let isAdmin = false;
+        let stats = {};
+        let users = [];
+        let auditLogs = {
+            file: { page: 1, total: 0, logs: [] },
+            login: { page: 1, total: 0, logs: [] }
+        };
+        let currentAuditType = 'file';
+
+        // 跳转到登录页
+        function goToLogin() {
+            window.location.href = '/__login.html';
+        }
+
+        // 显示登录后内容
+        function showAuthenticatedContent() {
+            document.getElementById('loginPrompt').classList.remove('active');
+            document.getElementById('contentWrapper').classList.add('active');
+        }
+
+        // 显示未登录提示
+        function showLoginPrompt() {
+            document.getElementById('loginPrompt').classList.add('active');
+            document.getElementById('contentWrapper').classList.remove('active');
+        }
+
+        // 显示消息
+        function showMessage(type, text) {
+            const message = document.getElementById('message');
+            message.className = `message ${type}`;
+            message.textContent = text;
+            message.style.display = 'block';
+            // 移动端自动关闭时间缩短
+            const isMobile = window.innerWidth <= 640;
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, isMobile ? 3000 : 5000);
+        }
+
+        // 显示加载遮罩
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        // 隐藏加载遮罩
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // 打开模态框
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.add('active');
+            // 移动端禁止背景滚动
+            document.body.style.overflow = 'hidden';
+            // 聚焦第一个输入框
+            setTimeout(() => {
+                const firstInput = modal.querySelector('input:not([disabled]):not([readonly])');
+                if (firstInput) firstInput.focus();
+            }, 300);
+        }
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+            // 清空表单
+            if (modalId === 'createUserModal') {
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newUserPassword').value = '';
+                document.getElementById('confirmUserPassword').value = '';
+                resetPasswordRequirements('create');
+            } else if (modalId === 'adminChangePasswordModal') {
+                document.getElementById('adminChangePassword').value = '';
+                document.getElementById('adminConfirmPassword').value = '';
+                resetPasswordRequirements('admin');
+            }
+        }
+
+        // 点击模态框背景关闭
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal') && e.target.classList.contains('active')) {
+                closeModal(e.target.id);
+            }
+        });
+
+        // 重置密码要求显示
+        function resetPasswordRequirements(type = 'create') {
+            const prefix = type === 'create' ? 'create' : 'admin';
+            document.getElementById(`${prefix}ReqLength`).innerHTML = '❌ 至少8个字符';
+            document.getElementById(`${prefix}ReqUpper`).innerHTML = '❌ 至少1个大写字母';
+            document.getElementById(`${prefix}ReqLower`).innerHTML = '❌ 至少1个小写字母';
+            document.getElementById(`${prefix}ReqDigit`).innerHTML = '❌ 至少1个数字';
+            if (type === 'create') {
+                document.getElementById('createReqMatch').innerHTML = '❌ 两次密码不一致';
+            } else {
+                document.getElementById('adminReqMatch').innerHTML = '❌ 两次密码不一致';
+            }
+            [`${prefix}ReqLength`, `${prefix}ReqUpper`, `${prefix}ReqLower`, `${prefix}ReqDigit`, type === 'create' ? 'createReqMatch' : 'adminReqMatch'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.classList.remove('met');
+            });
+        }
+
+        // 检查自己修改密码的强度
+        function checkOwnPasswordStrength() {
+            const password = document.getElementById('newPassword').value;
+            
+            const lengthMet = password.length >= 8;
+            const upperMet = /[A-Z]/.test(password);
+            const lowerMet = /[a-z]/.test(password);
+            const digitMet = /\d/.test(password);
+
+            document.getElementById('reqLength').innerHTML = (lengthMet ? '✅' : '❌') + ' 至少8个字符';
+            document.getElementById('reqUpper').innerHTML = (upperMet ? '✅' : '❌') + ' 至少1个大写字母';
+            document.getElementById('reqLower').innerHTML = (lowerMet ? '✅' : '❌') + ' 至少1个小写字母';
+            document.getElementById('reqDigit').innerHTML = (digitMet ? '✅' : '❌') + ' 至少1个数字';
+
+            if (lengthMet) document.getElementById('reqLength').classList.add('met');
+            if (upperMet) document.getElementById('reqUpper').classList.add('met');
+            if (lowerMet) document.getElementById('reqLower').classList.add('met');
+            if (digitMet) document.getElementById('reqDigit').classList.add('met');
+
+            checkPasswordMatch();
+        }
+
+        // 检查密码是否匹配（个人修改）
+        function checkPasswordMatch() {
+            const newPass = document.getElementById('newPassword').value;
+            const confirmPass = document.getElementById('confirmPassword').value;
+            const matchMet = newPass === confirmPass && newPass !== '';
+
+            document.getElementById('reqMatch').innerHTML = (matchMet ? '✅' : '❌') + ' 两次密码一致';
+            if (matchMet) {
+                document.getElementById('reqMatch').classList.add('met');
+            } else {
+                document.getElementById('reqMatch').classList.remove('met');
+            }
+        }
+
+        // 检查创建用户密码强度
+        function checkPasswordStrength() {
+            const password = document.getElementById('newUserPassword').value;
+            
+            const lengthMet = password.length >= 8;
+            const upperMet = /[A-Z]/.test(password);
+            const lowerMet = /[a-z]/.test(password);
+            const digitMet = /\d/.test(password);
+
+            document.getElementById('createReqLength').innerHTML = (lengthMet ? '✅' : '❌') + ' 至少8个字符';
+            document.getElementById('createReqUpper').innerHTML = (upperMet ? '✅' : '❌') + ' 至少1个大写字母';
+            document.getElementById('createReqLower').innerHTML = (lowerMet ? '✅' : '❌') + ' 至少1个小写字母';
+            document.getElementById('createReqDigit').innerHTML = (digitMet ? '✅' : '❌') + ' 至少1个数字';
+
+            if (lengthMet) document.getElementById('createReqLength').classList.add('met');
+            if (upperMet) document.getElementById('createReqUpper').classList.add('met');
+            if (lowerMet) document.getElementById('createReqLower').classList.add('met');
+            if (digitMet) document.getElementById('createReqDigit').classList.add('met');
+
+            checkCreatePasswordMatch();
+        }
+
+        // 检查创建用户密码是否匹配
+        function checkCreatePasswordMatch() {
+            const newPass = document.getElementById('newUserPassword').value;
+            const confirmPass = document.getElementById('confirmUserPassword').value;
+            const matchMet = newPass === confirmPass && newPass !== '';
+
+            document.getElementById('createReqMatch').innerHTML = (matchMet ? '✅' : '❌') + ' 两次密码一致';
+            if (matchMet) {
+                document.getElementById('createReqMatch').classList.add('met');
+            } else {
+                document.getElementById('createReqMatch').classList.remove('met');
+            }
+        }
+
+        // 检查管理员修改密码强度
+        function checkAdminPasswordStrength() {
+            const password = document.getElementById('adminChangePassword').value;
+            
+            const lengthMet = password.length >= 8;
+            const upperMet = /[A-Z]/.test(password);
+            const lowerMet = /[a-z]/.test(password);
+            const digitMet = /\d/.test(password);
+
+            document.getElementById('adminReqLength').innerHTML = (lengthMet ? '✅' : '❌') + ' 至少8个字符';
+            document.getElementById('adminReqUpper').innerHTML = (upperMet ? '✅' : '❌') + ' 至少1个大写字母';
+            document.getElementById('adminReqLower').innerHTML = (lowerMet ? '✅' : '❌') + ' 至少1个小写字母';
+            document.getElementById('adminReqDigit').innerHTML = (digitMet ? '✅' : '❌') + ' 至少1个数字';
+
+            if (lengthMet) document.getElementById('adminReqLength').classList.add('met');
+            if (upperMet) document.getElementById('adminReqUpper').classList.add('met');
+            if (lowerMet) document.getElementById('adminReqLower').classList.add('met');
+            if (digitMet) document.getElementById('adminReqDigit').classList.add('met');
+
+            checkAdminPasswordMatch();
+        }
+
+        // 检查管理员修改密码是否匹配
+        function checkAdminPasswordMatch() {
+            const newPass = document.getElementById('adminChangePassword').value;
+            const confirmPass = document.getElementById('adminConfirmPassword').value;
+            const matchMet = newPass === confirmPass && newPass !== '';
+
+            document.getElementById('adminReqMatch').innerHTML = (matchMet ? '✅' : '❌') + ' 两次密码一致';
+            if (matchMet) {
+                document.getElementById('adminReqMatch').classList.add('met');
+            } else {
+                document.getElementById('adminReqMatch').classList.remove('met');
+            }
+        }
+
+        // 切换标签页
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            // 移动端滚动到标签内容
+            if (window.innerWidth <= 640) {
+                document.getElementById(`tab-${tab}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // 加载对应数据
+            if (tab === 'users' && isAdmin) {
+                loadUsers();
+            } else if (tab === 'audit' && isAdmin) {
+                loadAuditLogs();
+            } else if (tab === 'system') {
+                loadSystemInfo();
+            }
+        }
+
+        // 切换审计日志类型
+        function switchAuditType() {
+            currentAuditType = document.getElementById('auditType').value;
+            document.getElementById('operationFilter').style.display = 
+                currentAuditType === 'file' ? 'flex' : 'none';
+            auditLogs[currentAuditType].page = 1;
+            loadAuditLogs();
+        }
+
+        // 检查认证状态
+        async function checkAuth() {
+            try {
+                showLoading();
+                const response = await fetch('/api/check-auth', {
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (!data.authenticated) {
+                    showLoginPrompt();
+                    return;
+                }
+
+                currentUser = data.user;
+                isAdmin = data.is_admin;
+
+                showAuthenticatedContent();
+                updateUserInfo();
+
+                if (!isAdmin) {
+                    const userTab = document.querySelector('[onclick="switchTab(\'users\')"]');
+                    const auditTab = document.querySelector('[onclick="switchTab(\'audit\')"]');
+                    if (userTab) userTab.style.display = 'none';
+                    if (auditTab) auditTab.style.display = 'none';
+                }
+
+                loadStats();
+                if (isAdmin) {
+                    loadUsers();
+                }
+                loadSystemInfo();
+
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showMessage('error', '认证检查失败，请刷新页面');
+                showLoginPrompt();
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 更新用户信息显示
+        function updateUserInfo() {
+            document.getElementById('username').textContent = currentUser.username;
+            document.getElementById('userRole').textContent = isAdmin ? '管理员' : '用户';
+            document.getElementById('userRole').className = `badge ${isAdmin ? 'admin' : 'user'}`;
+            
+            document.getElementById('profileUsername').textContent = currentUser.username;
+            document.getElementById('profileRole').textContent = isAdmin ? '管理员' : '普通用户';
+            document.getElementById('userAvatar').textContent = currentUser.username.charAt(0).toUpperCase();
+            document.getElementById('userId').textContent = currentUser.id;
+            document.getElementById('userCreatedAt').textContent = currentUser.created_at ? new Date(currentUser.created_at).toLocaleString() : '未知';
+            document.getElementById('userLastLogin').textContent = currentUser.last_login ? new Date(currentUser.last_login).toLocaleString() : '从未登录';
+            document.getElementById('userLastLoginIp').textContent = currentUser.last_login_ip || '未知';
+        }
+
+        // 加载统计信息
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats', {
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    stats = data.stats;
+                    renderStats();
+                }
+            } catch (error) {
+                console.error('Load stats error:', error);
+            }
+        }
+
+        // 渲染统计卡片
+        function renderStats() {
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <h3>用户统计</h3>
+                    <div class="stat-value">${stats.users?.total || 0}</div>
+                    <div class="stat-label">总用户数</div>
+                    <div class="stat-progress">
+                        <div class="stat-progress-bar" style="width: ${((stats.users?.active || 0) / (stats.users?.total || 1) * 100) || 0}%"></div>
+                    </div>
+                    <div class="stat-detail">
+                        <span>活跃: ${stats.users?.active || 0}</span>
+                        <span>禁用: ${stats.users?.inactive || 0}</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3>文件操作</h3>
+                    <div class="stat-value">${stats.file_operations?.total || 0}</div>
+                    <div class="stat-label">总操作次数</div>
+                    <div class="stat-detail">
+                        <span>成功: ${stats.file_operations?.successful || 0}</span>
+                        <span>失败: ${stats.file_operations?.failed || 0}</span>
+                    </div>
+                    <div class="stat-detail-highlight">24h内: ${stats.file_operations?.recent_24h || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>登录统计</h3>
+                    <div class="stat-value">${stats.login_attempts?.total || 0}</div>
+                    <div class="stat-label">总尝试次数</div>
+                    <div class="stat-detail">
+                        <span>成功: ${stats.login_attempts?.successful || 0}</span>
+                        <span>失败: ${stats.login_attempts?.failed || 0}</span>
+                    </div>
+                    <div class="stat-detail-highlight">成功率: ${stats.login_attempts?.success_rate || 0}%</div>
+                </div>
+            `;
+        }
+
+        // 加载用户列表
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users', {
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    users = data.users;
+                    renderUsers();
+                }
+            } catch (error) {
+                console.error('Load users error:', error);
+            }
+        }
+
+        // 渲染用户列表
+        function renderUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            const searchTerm = document.getElementById('userSearch')?.value.toLowerCase() || '';
+
+            const filteredUsers = users.filter(user => 
+                user.username.toLowerCase().includes(searchTerm)
+            );
+
+            tbody.innerHTML = filteredUsers.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.username} ${user.id === 1 ? '<span style="font-size:10px;color:#856404;">(管理员)</span>' : ''}</td>
+                    <td>
+                        <span class="status-badge ${user.is_active ? 'status-active' : 'status-inactive'}">
+                            ${user.is_active ? '活跃' : '已禁用'}
+                        </span>
+                    </td>
+                    <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : '未知'}</td>
+                    <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : '从未'}</td>
+                    <td>${user.last_login_ip || '未知'}</td>
+                    <td>
+                        <div class="action-group">
+                            ${user.id !== currentUser.id ? `
+                                <button class="btn btn-sm btn-warning" onclick="showAdminChangePasswordModal(${user.id}, '${user.username}')">改密</button>
+                                <button class="btn btn-sm ${user.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleUserStatus(${user.id})">
+                                    ${user.is_active ? '禁用' : '启用'}
+                                </button>
+                                ${user.id !== 1 ? `
+                                <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">删除</button>
+                                ` : ''}
+                            ` : `
+                                <span class="status-badge status-active">当前用户</span>
+                            `}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            if (filteredUsers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #999;">暂无用户</td></tr>';
+            }
+        }
+
+        // 过滤用户
+        function filterUsers() {
+            renderUsers();
+        }
+
+        // 显示创建用户模态框
+        function showCreateUserModal() {
+            resetPasswordRequirements('create');
+            openModal('createUserModal');
+        }
+
+        // 创建用户
+        async function createUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newUserPassword').value;
+            const confirmPassword = document.getElementById('confirmUserPassword').value;
+
+            if (!username || !password || !confirmPassword) {
+                showMessage('error', '请填写所有必填字段');
+                return;
+            }
+
+            if (username.length < 3) {
+                showMessage('error', '用户名至少需要3个字符');
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                showMessage('error', '用户名只能包含字母、数字和下划线');
+                return;
+            }
+
+            if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+                showMessage('error', '密码不符合要求');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                showMessage('error', '两次输入的密码不一致');
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', `用户 ${username} 创建成功`);
+                    closeModal('createUserModal');
+                    loadUsers();
+                    loadStats();
+                } else {
+                    showMessage('error', data.error || '创建用户失败');
+                }
+            } catch (error) {
+                console.error('Create user error:', error);
+                showMessage('error', '网络错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 修改自己的密码
+        async function changeOwnPassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showMessage('error', '请填写所有密码字段');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showMessage('error', '两次输入的新密码不一致');
+                return;
+            }
+
+            if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+                showMessage('error', '新密码不符合要求');
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        old_password: currentPassword,
+                        new_password: newPassword 
+                    }),
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', '密码修改成功，请重新登录');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                    setTimeout(() => {
+                        handleLogout();
+                    }, 2000);
+                } else {
+                    showMessage('error', data.error || '密码修改失败');
+                }
+            } catch (error) {
+                console.error('Change password error:', error);
+                showMessage('error', '网络错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 显示管理员修改密码模态框
+        function showAdminChangePasswordModal(userId, username) {
+            document.getElementById('adminChangeUsername').value = username;
+            document.getElementById('adminChangePassword').value = '';
+            document.getElementById('adminConfirmPassword').value = '';
+            document.getElementById('adminChangePassword').dataset.userId = userId;
+            resetPasswordRequirements('admin');
+            openModal('adminChangePasswordModal');
+        }
+
+        // 管理员修改用户密码
+        async function adminChangeUserPassword() {
+            const userId = document.getElementById('adminChangePassword').dataset.userId;
+            const newPassword = document.getElementById('adminChangePassword').value;
+            const confirmPassword = document.getElementById('adminConfirmPassword').value;
+
+            if (!newPassword || !confirmPassword) {
+                showMessage('error', '请填写所有密码字段');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showMessage('error', '两次输入的密码不一致');
+                return;
+            }
+
+            if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+                showMessage('error', '密码不符合要求');
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await fetch(`/api/admin/users/${userId}/password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ new_password: newPassword }),
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', data.message || '密码修改成功');
+                    closeModal('adminChangePasswordModal');
+                } else {
+                    showMessage('error', data.error || '密码修改失败');
+                }
+            } catch (error) {
+                console.error('Admin change password error:', error);
+                showMessage('error', '网络错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 切换用户状态
+        async function toggleUserStatus(userId) {
+            if (!confirm('确定要切换用户状态吗？')) {
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await fetch(`/api/users/${userId}/toggle-status`, {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', data.message);
+                    loadUsers();
+                    loadStats();
+                } else {
+                    showMessage('error', data.error || '操作失败');
+                }
+            } catch (error) {
+                console.error('Toggle user status error:', error);
+                showMessage('error', '网络错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 删除用户
+        async function deleteUser(userId, username) {
+            if (!confirm(`确定要删除用户 ${username} 吗？此操作不可恢复！`)) {
+                return;
+            }
+
+            try {
+                showLoading();
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', data.message);
+                    loadUsers();
+                    loadStats();
+                } else {
+                    showMessage('error', data.error || '删除失败');
+                }
+            } catch (error) {
+                console.error('Delete user error:', error);
+                showMessage('error', '网络错误');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 加载审计日志
+        async function loadAuditLogs(page = auditLogs[currentAuditType].page) {
+            try {
+                const username = document.getElementById('auditUsername').value;
+                const operation = document.getElementById('auditOperation').value;
+
+                let url = currentAuditType === 'file' 
+                    ? `/api/audit/file-operations?page=${page}&per_page=20`
+                    : `/api/audit/login-attempts?page=${page}&per_page=20`;
+
+                if (username) {
+                    url += `&username=${encodeURIComponent(username)}`;
+                }
+                if (operation && currentAuditType === 'file') {
+                    url += `&operation=${encodeURIComponent(operation)}`;
+                }
+
+                const response = await fetch(url, {
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    auditLogs[currentAuditType] = {
+                        page: data.page,
+                        total: data.total,
+                        logs: data.logs
+                    };
+                    renderAuditLogs();
+                    renderAuditPagination();
+                }
+            } catch (error) {
+                console.error('Load audit logs error:', error);
+            }
+        }
+
+        // 渲染审计日志
+        function renderAuditLogs() {
+            const header = document.getElementById('auditTableHeader');
+            const tbody = document.getElementById('auditTableBody');
+            const logs = auditLogs[currentAuditType].logs;
+
+            if (currentAuditType === 'file') {
+                header.innerHTML = `
+                    <tr>
+                        <th>时间</th>
+                        <th>用户</th>
+                        <th>操作</th>
+                        <th>文件</th>
+                        <th>大小</th>
+                        <th>IP</th>
+                        <th>状态</th>
+                    </tr>
+                `;
+
+                tbody.innerHTML = logs.map(log => `
+                    <tr>
+                        <td>${new Date(log.timestamp).toLocaleString()}</td>
+                        <td>${log.username}</td>
+                        <td>${getOperationName(log.operation)}</td>
+                        <td>${log.filename}</td>
+                        <td>${log.file_size ? formatFileSize(log.file_size) : '-'}</td>
+                        <td>${log.ip_address || '未知'}</td>
+                        <td>
+                            <span class="status-badge ${log.success ? 'status-success' : 'status-failed'}">
+                                ${log.success ? '成功' : '失败'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                header.innerHTML = `
+                    <tr>
+                        <th>时间</th>
+                        <th>用户名</th>
+                        <th>IP</th>
+                        <th>状态</th>
+                    </tr>
+                `;
+
+                tbody.innerHTML = logs.map(log => `
+                    <tr>
+                        <td>${new Date(log.timestamp).toLocaleString()}</td>
+                        <td>${log.username || '未知'}</td>
+                        <td>${log.ip_address || '未知'}</td>
+                        <td>
+                            <span class="status-badge ${log.success ? 'status-success' : 'status-failed'}">
+                                ${log.success ? '成功' : '失败'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #999;">暂无日志</td></tr>';
+            }
+        }
+
+        // 获取操作名称
+        function getOperationName(operation) {
+            const operations = {
+                'upload': '上传',
+                'download': '下载',
+                'delete': '删除文件',
+                'delete_dir': '删除目录',
+                'delete_folder': '删除文件夹',
+                'batch_delete': '批量删除',
+                'batch_delete_dir': '批量删除目录',
+                'create_folder': '创建文件夹'
+            };
+            return operations[operation] || operation;
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 渲染审计日志分页
+        function renderAuditPagination() {
+            const pagination = document.getElementById('auditPagination');
+            const { page, total } = auditLogs[currentAuditType];
+            const totalPages = Math.ceil(total / 20);
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            html += `<button class="page-btn" ${page === 1 ? 'disabled' : ''} onclick="changeAuditPage(${page - 1})">‹</button>`;
+
+            const isMobile = window.innerWidth <= 640;
+            const maxVisible = isMobile ? 3 : 7;
+            
+            let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+
+            if (startPage > 1) {
+                html += `<button class="page-btn" onclick="changeAuditPage(1)">1</button>`;
+                if (startPage > 2) html += `<button class="page-btn" disabled>...</button>`;
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="page-btn ${i === page ? 'active' : ''}" onclick="changeAuditPage(${i})">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += `<button class="page-btn" disabled>...</button>`;
+                html += `<button class="page-btn" onclick="changeAuditPage(${totalPages})">${totalPages}</button>`;
+            }
+
+            html += `<button class="page-btn" ${page === totalPages ? 'disabled' : ''} onclick="changeAuditPage(${page + 1})">›</button>`;
+
+            pagination.innerHTML = html;
+        }
+
+        // 切换审计日志页码
+        function changeAuditPage(page) {
+            auditLogs[currentAuditType].page = page;
+            loadAuditLogs(page);
+        }
+
+        // 加载系统信息
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/health');
+                const health = await response.json();
+
+                const serverStatus = document.getElementById('serverStatus');
+                serverStatus.textContent = health.status === 'healthy' ? '正常' : '异常';
+                serverStatus.className = `badge ${health.status === 'healthy' ? 'success' : 'error'}`;
+
+                const dbStatus = document.getElementById('dbStatus');
+                if (health.database) {
+                    dbStatus.textContent = health.database.message || (health.database.status === 'connected' ? '已连接' : '异常');
+                    dbStatus.className = `badge ${health.database.status_badge || (health.database.status === 'connected' ? 'success' : 'error')}`;
+                    
+                    document.getElementById('dbPath').textContent = health.database.path || '未知';
+                    
+                    const dbDetails = health.database;
+                    if (dbDetails.directory || dbDetails.file) {
+                        document.getElementById('dbDetailsCard').style.display = 'block';
+                        let detailsHtml = '';
+                        
+                        if (dbDetails.directory) {
+                            detailsHtml += `
+                                <div>
+                                    <span>📁 目录存在: </span>
+                                    <span class="${dbDetails.directory.exists ? 'ok' : 'error'}">${dbDetails.directory.exists ? '✅' : '❌'}</span>
+                                    ${dbDetails.directory.exists ? `<span class="ok"> 可写: ${dbDetails.directory.writable ? '✅' : '❌'}</span>` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        if (dbDetails.file) {
+                            detailsHtml += `
+                                <div>
+                                    <span>📄 文件存在: </span>
+                                    <span class="${dbDetails.file.exists ? 'ok' : 'error'}">${dbDetails.file.exists ? '✅' : '❌'}</span>
+                                    ${dbDetails.file.exists ? `<span class="ok"> 可写: ${dbDetails.file.writable ? '✅' : '❌'}</span>` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        document.getElementById('dbDetails').innerHTML = detailsHtml;
+                    }
+                } else {
+                    const isDbConnected = health.database === 'connected';
+                    dbStatus.textContent = isDbConnected ? '已连接' : '异常';
+                    dbStatus.className = `badge ${isDbConnected ? 'success' : 'error'}`;
+                    document.getElementById('dbPath').textContent = health.database_path || '未知';
+                }
+
+                const filesystemStatus = document.getElementById('filesystemStatus');
+                if (health.filesystem) {
+                    filesystemStatus.textContent = health.filesystem.enabled ? '已启用' : '已禁用';
+                    filesystemStatus.className = `badge ${health.filesystem.enabled ? 'success' : 'warning'}`;
+                    document.getElementById('filesystemRoot').textContent = health.filesystem.root || '未配置';
+                } else {
+                    filesystemStatus.textContent = health.filesystem_enabled ? '已启用' : '已禁用';
+                    filesystemStatus.className = `badge ${health.filesystem_enabled ? 'success' : 'warning'}`;
+                }
+
+                const sslStatus = document.getElementById('sslStatus');
+                if (health.ssl) {
+                    sslStatus.textContent = health.ssl.enabled ? '已启用' : '已禁用';
+                    sslStatus.className = `badge ${health.ssl.enabled ? 'success' : 'warning'}`;
+                    document.getElementById('sslCert').textContent = health.ssl.cert_file || '-';
+                } else {
+                    sslStatus.textContent = '已禁用';
+                    sslStatus.className = 'badge warning';
+                }
+
+            } catch (error) {
+                console.error('Load system info error:', error);
+                
+                document.getElementById('serverStatus').textContent = '检查失败';
+                document.getElementById('serverStatus').className = 'badge error';
+                document.getElementById('dbStatus').textContent = '检查失败';
+                document.getElementById('dbStatus').className = 'badge error';
+                document.getElementById('filesystemStatus').textContent = '检查失败';
+                document.getElementById('filesystemStatus').className = 'badge error';
+                document.getElementById('sslStatus').textContent = '检查失败';
+                document.getElementById('sslStatus').className = 'badge error';
+                document.getElementById('dbPath').textContent = '未知';
+            }
+        }
+
+        // 退出登录
+        async function handleLogout() {
+            try {
+                showLoading();
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    currentUser = null;
+                    isAdmin = false;
+                    showLoginPrompt();
+                    showMessage('info', '您已成功退出登录');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                currentUser = null;
+                isAdmin = false;
+                showLoginPrompt();
+                showMessage('warning', '已退出登录（本地状态已清除）');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 页面加载时检查认证
+        document.addEventListener('DOMContentLoaded', checkAuth);
+    </script>
+</body>
+</html>

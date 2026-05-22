@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover, shrink-to-fit=no">
+  <title>公司内部控制台</title>
+  <style>
+    /* ========== 全局重置与APP风格 ========== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f2f4f8;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 16px 12px;
+      color: #1d1d2c;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1100px;
+      background: #ffffff;
+      border-radius: 36px;
+      padding: 20px 20px 28px;
+      box-shadow: 0 20px 35px rgba(0, 0, 0, 0.06), 0 8px 18px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    h1 {
+      font-size: 1.9rem;
+      font-weight: 680;
+      letter-spacing: -0.3px;
+      color: #0b1e33;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      padding-bottom: 6px;
+    }
+
+    /* 管理栏 */
+    .admin-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: #f6f9fe;
+      padding: 14px 20px;
+      border-radius: 28px;
+    }
+
+    .user-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-badge {
+      background: #e8edf9;
+      padding: 8px 20px;
+      border-radius: 34px;
+      font-weight: 580;
+      color: #1e3a6b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+
+    .visitor-badge {
+      background: #f0fdf4;
+      padding: 8px 20px;
+      border-radius: 34px;
+      font-weight: 580;
+      color: #166534;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+
+    .management-links {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .mgmt-btn {
+      background: white;
+      border: 1px solid #dce3ef;
+      padding: 10px 19px;
+      border-radius: 34px;
+      font-weight: 550;
+      font-size: 0.88rem;
+      color: #1f2a44;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+      background: #ffffff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+      cursor: pointer;
+    }
+
+    .mgmt-btn:hover {
+      background: #f0f4ff;
+      border-color: #9aa9c1;
+    }
+
+    .logout-btn {
+      background: #ffe9e9;
+      border: 1px solid #fcc;
+      color: #b22234;
+      padding: 10px 20px;
+      border-radius: 34px;
+      font-weight: 580;
+      cursor: pointer;
+      transition: 0.2s;
+      font-size: 0.88rem;
+      border: none;
+    }
+
+    .logout-btn:hover {
+      background: #ffd4d4;
+    }
+
+    /* 路径导航 */
+    .path {
+      background: #f4f6fc;
+      padding: 12px 18px;
+      border-radius: 22px;
+      font-family: 'SF Mono', 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      word-break: break-word;
+      color: #2c3e50;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .path a {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 530;
+    }
+    .path a:hover {
+      text-decoration: underline;
+    }
+
+    /* ========== APP风格方形卡片网格 ========== */
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 18px;
+      margin-top: 6px;
+    }
+
+    /* 方形卡片 */
+    .app-card {
+      background: #ffffff;
+      border-radius: 28px;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 12px 8px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0,0,0,0.02);
+      border: 1px solid #f0f2f8;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      background: #fdfdfe;
+      word-break: break-word;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .app-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+      border-color: #d1d9e6;
+    }
+
+    .app-card:active {
+      transform: scale(0.96);
+      background: #f2f6ff;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    .app-card .card-icon {
+      width: 60px;
+      height: 60px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease;
+    }
+
+    .app-card .card-icon img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+
+    .app-card .card-icon .icon-emoji {
+      font-size: 2.8rem;
+      line-height: 1;
+    }
+
+    .app-card:hover .card-icon {
+      transform: scale(1.1);
+    }
+
+    .app-card .card-name {
+      font-weight: 590;
+      font-size: 0.85rem;
+      color: #121826;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0 4px;
+    }
+
+    .app-card .card-meta {
+      font-size: 0.7rem;
+      color: #5f6b7f;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* 文件卡片特殊样式 */
+    .app-card.file-card {
+      background: #fafcff;
+      border-color: #e8edf5;
+    }
+
+    .app-card.file-card:hover {
+      background: #f0f6ff;
+      border-color: #b8cbe0;
+    }
+
+    /* 返回上级卡片特殊样式 */
+    .app-card.parent-dir {
+      background: #f0f4fe;
+      border: 1px dashed #b9c8f0;
+    }
+
+    .app-card.parent-dir .card-icon .icon-emoji {
+      font-size: 2.5rem;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 50px 20px;
+      color: #7c7f8c;
+      font-size: 1rem;
+      background: #fafbfc;
+      border-radius: 32px;
+      font-weight: 500;
+    }
+
+    /* 隐藏文件计数提示 */
+    .hidden-files-hint {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: -8px;
+      padding: 4px;
+    }
+
+    /* 加载动画 */
+    .loading-spinner {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: #94a3b8;
+      font-size: 1rem;
+    }
+
+    .loading-spinner::before {
+      content: '';
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e2e8f0;
+      border-top: 3px solid #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 登录提示卡片 */
+    .login-prompt-card {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 30px 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 24px;
+      color: white;
+      font-weight: 500;
+    }
+
+    .login-prompt-card a {
+      color: #ffd700;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 600px) {
+      .app-grid {
+        grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+        gap: 14px;
+      }
+      .app-card .card-icon {
+        width: 48px;
+        height: 48px;
+      }
+      .app-card .card-icon .icon-emoji {
+        font-size: 2.3rem;
+      }
+      .container {
+        padding: 16px;
+      }
+    }
+
+    @media (min-width: 900px) {
+      .app-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      }
+    }
+
+    .message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 14px 24px;
+      border-radius: 60px;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.15);
+      font-weight: 500;
+      z-index: 2000;
+      display: none;
+      border-left: 5px solid #3b82f6;
+      font-size: 0.9rem;
+      max-width: 90vw;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .login-prompt {
+      color: #4a5568;
+      font-size: 0.9rem;
+    }
+
+    /* 图标加载失败时的回退样式 */
+    .icon-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f1f5f9;
+      border-radius: 12px;
+      font-size: 1.5rem;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>
+    <span>🏢</span> 公司内部控制台
+  </h1>
+
+  <!-- 管理栏 -->
+  <div class="admin-bar">
+    <div class="user-section" id="userInfoBlock">
+      <span id="userDisplayArea">加载身份中...</span>
+    </div>
+    <div class="management-links">
+      <a href="/__login.html" class="mgmt-btn" id="loginLink">
+        <span>🔐</span> 登录
+      </a>
+      <!-- 修改：使用 button 并通过 JS 在新标签页打开设置页面 -->
+      <button class="mgmt-btn" id="settingsButton" onclick="openSettings()">
+        <span>⚙️</span> 设置
+      </button>
+      <button class="logout-btn" id="logoutButton" style="display: none;">退出登录</button>
+    </div>
+  </div>
+
+  <!-- 路径导航 -->
+  <div class="path" id="pathNav">
+    <a href="#" data-nav="/">🏠 根目录</a>
+  </div>
+
+  <!-- APP方形卡片网格容器 -->
+  <div class="app-grid" id="appGridContainer">
+    <div class="loading-spinner">正在加载文件...</div>
+  </div>
+</div>
+
+<div id="liveMessage" class="message"></div>
+
+<script>
+  // 在新标签页中打开设置页面
+  function openSettings() {
+    window.open('/__settings.html', '_blank');
+  }
+
+  (function() {
+    // ---------- 状态 ----------
+    let currentPath = '';
+    let isLoggedIn = false;
+    let currentUser = null;
+    let isAdmin = false;
+    
+    // 图标缓存：存储已检查过的文件名与图标路径的映射
+    const iconCache = new Map();
+    
+    // 图标请求队列，避免重复请求
+    const pendingIconChecks = new Map();
+
+    const gridContainer = document.getElementById('appGridContainer');
+    const pathNav = document.getElementById('pathNav');
+    const userDisplayArea = document.getElementById('userDisplayArea');
+    const logoutBtn = document.getElementById('logoutButton');
+    const loginLink = document.getElementById('loginLink');
+    const messageDiv = document.getElementById('liveMessage');
+
+    // Emoji回退图标（当自定义图标不可用时使用）
+    const fallbackEmojis = {
+      'dir': '📁',
+      'file': '📄',
+      'image': '🖼️',
+      'document': '📘',
+      'video': '🎬',
+      'audio': '🎵',
+      'archive': '📦',
+      'code': '💻',
+      'pdf': '📕',
+      'default': '📄'
+    };
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes == null || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    /**
+     * 获取文件的扩展名分类（用于回退图标）
+     */
+    function getFileCategory(filename) {
+      if (!filename) return 'default';
+      const ext = filename.split('.').pop().toLowerCase();
+      
+      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'];
+      const docExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv'];
+      const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'];
+      const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'];
+      const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'];
+      const codeExts = ['js', 'py', 'html', 'css', 'json', 'xml', 'java', 'cpp', 'c', 'php', 'rb', 'go', 'ts', 'jsx', 'tsx', 'vue'];
+      
+      if (ext === 'pdf') return 'pdf';
+      if (imageExts.includes(ext)) return 'image';
+      if (docExts.includes(ext)) return 'document';
+      if (videoExts.includes(ext)) return 'video';
+      if (audioExts.includes(ext)) return 'audio';
+      if (archiveExts.includes(ext)) return 'archive';
+      if (codeExts.includes(ext)) return 'code';
+      
+      return 'default';
+    }
+
+    /**
+     * 获取回退的Emoji图标
+     */
+    function getFallbackEmoji(filename, isDir) {
+      if (isDir) return fallbackEmojis['dir'];
+      const category = getFileCategory(filename);
+      return fallbackEmojis[category] || fallbackEmojis['default'];
+    }
+
+    /**
+     * 检查自定义图标是否存在
+     * 图标路径格式: /__icons/文件名.ico
+     */
+    async function checkCustomIcon(filename) {
+      if (iconCache.has(filename)) {
+        return iconCache.get(filename);
+      }
+      
+      if (pendingIconChecks.has(filename)) {
+        return pendingIconChecks.get(filename);
+      }
+      
+      const iconUrl = `/__icons/${encodeURIComponent(filename)}.ico`;
+      
+      const checkPromise = new Promise((resolve) => {
+        const img = new Image();
+        
+        let resolved = false;
+        
+        const handleLoad = () => {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timeout);
+          iconCache.set(filename, iconUrl);
+          pendingIconChecks.delete(filename);
+          resolve(iconUrl);
+        };
+        
+        const handleError = () => {
+          if (resolved) return;
+          resolved = true;
+          clearTimeout(timeout);
+          iconCache.set(filename, null);
+          pendingIconChecks.delete(filename);
+          resolve(null);
+        };
+        
+        const timeout = setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          iconCache.set(filename, null);
+          pendingIconChecks.delete(filename);
+          resolve(null);
+        }, 3000);
+        
+        img.onload = handleLoad;
+        img.onerror = handleError;
+        img.src = iconUrl;
+      });
+      
+      pendingIconChecks.set(filename, checkPromise);
+      return checkPromise;
+    }
+
+    /**
+     * 预加载一批文件的图标
+     */
+    async function preloadIcons(items) {
+      const promises = items.map(item => {
+        if (item.type === 'dir') return Promise.resolve(null);
+        return checkCustomIcon(item.name);
+      });
+      
+      await Promise.allSettled(promises);
+    }
+
+    function showMessage(type, text) {
+      messageDiv.className = 'message';
+      messageDiv.textContent = text;
+      messageDiv.style.display = 'block';
+      messageDiv.style.borderLeftColor = type === 'error' ? '#ef4444' : (type === 'success' ? '#10b981' : '#3b82f6');
+      clearTimeout(messageDiv._timeout);
+      messageDiv._timeout = setTimeout(() => { 
+        messageDiv.style.display = 'none'; 
+      }, 3000);
+    }
+
+    /**
+     * 过滤掉以双下划线 __ 开头的文件/目录
+     */
+    function filterHiddenFiles(files) {
+      if (!Array.isArray(files)) return [];
+      return files.filter(file => {
+        if (!file || !file.name) return false;
+        return !file.name.startsWith('__');
+      });
+    }
+
+    /**
+     * 更新路径导航
+     */
+    function renderPathNav(path) {
+      if (!path || path === '') {
+        pathNav.innerHTML = '<a href="#" data-nav="/">🏠 根目录</a>';
+        return;
+      }
+      
+      path = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+      const parts = path.split('/').filter(p => p !== '');
+      
+      let html = '<a href="#" data-nav="/">🏠 根目录</a>';
+      let accumulated = '';
+      parts.forEach((part, idx) => {
+        accumulated += '/' + part;
+        html += ` / <a href="#" data-nav="${accumulated}">${escapeHtml(part)}</a>`;
+      });
+      pathNav.innerHTML = html;
+
+      pathNav.querySelectorAll('a[data-nav]').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const navPath = this.getAttribute('data-nav');
+          const cleanPath = navPath === '/' ? '' : navPath.replace(/^\//, '');
+          navigateToPath(cleanPath);
+        });
+      });
+    }
+
+    /**
+     * 渲染图标HTML
+     */
+    function renderIconHTML(filename, isDir) {
+      if (isDir) {
+        return `<span class="icon-emoji">📁</span>`;
+      }
+      
+      const customIcon = iconCache.get(filename);
+      
+      if (customIcon) {
+        return `<img src="${escapeHtml(customIcon)}" alt="${escapeHtml(filename)}" onerror="this.parentElement.innerHTML='<span class=\\'icon-emoji\\'>${getFallbackEmoji(filename, false)}</span>'">`;
+      } else if (iconCache.has(filename) && iconCache.get(filename) === null) {
+        const emoji = getFallbackEmoji(filename, false);
+        return `<span class="icon-emoji">${emoji}</span>`;
+      } else {
+        const emoji = getFallbackEmoji(filename, false);
+        return `<span class="icon-emoji icon-placeholder" data-filename="${escapeHtml(filename)}">${emoji}</span>`;
+      }
+    }
+
+    /**
+     * 异步更新占位图标
+     */
+    async function updatePlaceholderIcons() {
+      const placeholders = document.querySelectorAll('.icon-placeholder');
+      
+      for (const placeholder of placeholders) {
+        const filename = placeholder.getAttribute('data-filename');
+        if (!filename) continue;
+        
+        const customIcon = await checkCustomIcon(filename);
+        
+        if (customIcon) {
+          placeholder.innerHTML = `<img src="${escapeHtml(customIcon)}" alt="${escapeHtml(filename)}" onerror="this.innerHTML='<span class=\\'icon-emoji\\'>${getFallbackEmoji(filename, false)}</span>'">`;
+          placeholder.classList.remove('icon-placeholder');
+          placeholder.removeAttribute('data-filename');
+        } else {
+          placeholder.classList.remove('icon-placeholder');
+          placeholder.removeAttribute('data-filename');
+        }
+      }
+    }
+
+    /**
+     * 渲染方形卡片网格
+     */
+    function renderAppGrid(items, parentPath) {
+      const visibleItems = filterHiddenFiles(items);
+      const hiddenCount = items ? items.length - visibleItems.length : 0;
+
+      if (!visibleItems || visibleItems.length === 0) {
+        let html = '';
+        if (currentPath && currentPath !== '') {
+          const parent = parentPath || '';
+          html += `
+            <div class="app-card parent-dir" data-navigate="${escapeHtml(parent)}">
+              <div class="card-icon"><span class="icon-emoji">↩️</span></div>
+              <div class="card-name">返回上级</div>
+              <div class="card-meta">文件夹</div>
+            </div>
+          `;
+        }
+        html += `<div class="empty-state">📭 此文件夹为空</div>`;
+        if (hiddenCount > 0) {
+          html += `<div class="hidden-files-hint">🔒 已隐藏 ${hiddenCount} 个系统项目</div>`;
+        }
+        gridContainer.innerHTML = html;
+        bindCardNavigation();
+        return;
+      }
+
+      let html = '';
+
+      if (currentPath && currentPath !== '') {
+        const parent = parentPath || '';
+        html += `
+          <div class="app-card parent-dir" data-navigate="${escapeHtml(parent)}">
+            <div class="card-icon"><span class="icon-emoji">↩️</span></div>
+            <div class="card-name">返回上级</div>
+            <div class="card-meta">文件夹</div>
+          </div>
+        `;
+      }
+
+      visibleItems.forEach(item => {
+        const safeName = escapeHtml(item.name);
+        const isDir = item.type === 'dir';
+        const iconHTML = renderIconHTML(item.name, isDir);
+        const metaText = isDir ? '文件夹' : (formatFileSize(item.size) || '文件');
+        const itemPath = item.path || item.name;
+
+        if (isDir) {
+          html += `
+            <div class="app-card" data-navigate="${escapeHtml(itemPath)}" title="打开文件夹: ${safeName}">
+              <div class="card-icon">${iconHTML}</div>
+              <div class="card-name">${safeName}</div>
+              <div class="card-meta">${metaText}</div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="app-card file-card" data-file="${escapeHtml(itemPath)}" title="打开文件: ${safeName}">
+              <div class="card-icon">${iconHTML}</div>
+              <div class="card-name">${safeName}</div>
+              <div class="card-meta">${metaText}</div>
+            </div>
+          `;
+        }
+      });
+
+      if (hiddenCount > 0) {
+        html += `<div class="hidden-files-hint">🔒 已隐藏 ${hiddenCount} 个系统项目</div>`;
+      }
+
+      gridContainer.innerHTML = html;
+      bindCardNavigation();
+      bindFileOpen();
+      
+      updatePlaceholderIcons();
+    }
+
+    /**
+     * 绑定目录卡片点击导航
+     */
+    function bindCardNavigation() {
+      document.querySelectorAll('.app-card[data-navigate]').forEach(card => {
+        card.addEventListener('click', function(e) {
+          const targetPath = this.getAttribute('data-navigate');
+          if (targetPath !== null && targetPath !== undefined) {
+            navigateToPath(targetPath);
+          }
+        });
+      });
+    }
+
+    /**
+     * 绑定文件卡片点击打开
+     */
+    function bindFileOpen() {
+      document.querySelectorAll('.app-card[data-file]').forEach(card => {
+        card.addEventListener('click', function(e) {
+          const filePath = this.getAttribute('data-file');
+          if (filePath) {
+            openFile(filePath);
+          }
+        });
+      });
+    }
+
+    /**
+     * 打开文件（在新标签页中）
+     */
+    function openFile(filePath) {
+      const fullPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+      window.open(fullPath, '_blank');
+    }
+
+    /**
+     * 导航到指定路径
+     */
+    function navigateToPath(path) {
+      if (path === '/' || path === '') {
+        currentPath = '';
+      } else {
+        currentPath = path.replace(/^\/+/, '');
+      }
+      
+      renderPathNav(currentPath);
+      loadDirectory();
+      
+      const urlPath = currentPath ? '/' + currentPath : '/';
+      if (window.location.pathname !== urlPath) {
+        window.history.pushState({}, '', urlPath);
+      }
+    }
+
+    /**
+     * 加载当前目录内容
+     */
+    async function loadDirectory() {
+      gridContainer.innerHTML = '<div class="loading-spinner">正在加载...</div>';
+      
+      try {
+        let apiUrl = '/api/filelist';
+        if (currentPath) {
+          apiUrl += '?path=' + encodeURIComponent(currentPath);
+        }
+        
+        const response = await fetch(apiUrl, {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            const data = await response.json();
+            if (data.require_login) {
+              gridContainer.innerHTML = `
+                <div class="login-prompt-card">
+                  <div style="font-size: 2rem; margin-bottom: 10px;">🔒</div>
+                  <div style="font-size: 1.1rem; margin-bottom: 8px;">此目录需要登录后才能访问</div>
+                  <div style="font-size: 0.9rem; opacity: 0.9;">
+                    请<a href="/__login.html">登录</a>后查看用户目录
+                  </div>
+                </div>
+              `;
+            } else {
+              showMessage('error', '请先登录');
+              gridContainer.innerHTML = '<div class="empty-state">🔒 需要登录才能访问此内容</div>';
+            }
+            return;
+          }
+          throw new Error('服务器响应错误: ' + response.status);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          const items = data.items || [];
+          const parentPath = data.parent_path || '';
+          
+          await preloadIcons(items);
+          
+          renderAppGrid(items, parentPath);
+        } else {
+          showMessage('error', data.error || '无法加载文件列表');
+          gridContainer.innerHTML = '<div class="empty-state">⚠️ 加载失败</div>';
+        }
+      } catch (err) {
+        console.error('加载目录失败:', err);
+        showMessage('error', '网络错误，无法获取文件列表');
+        gridContainer.innerHTML = '<div class="empty-state">⚠️ 连接错误，请检查网络</div>';
+      }
+    }
+
+    /**
+     * 检查登录状态
+     */
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/check-auth', { 
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+        isLoggedIn = data.authenticated || false;
+        currentUser = data.user || null;
+        isAdmin = data.is_admin || false;
+        
+        if (isLoggedIn && data.default_path && !currentPath) {
+          currentPath = data.default_path;
+          renderPathNav(currentPath);
+        }
+      } catch (e) {
+        console.error('检查认证失败:', e);
+        isLoggedIn = false;
+        currentUser = null;
+        isAdmin = false;
+      }
+      updateUserUI();
+    }
+
+    /**
+     * 更新用户界面
+     */
+    function updateUserUI() {
+      if (isLoggedIn && currentUser) {
+        const roleBadge = isAdmin ? '(管理员)' : '(用户)';
+        userDisplayArea.innerHTML = `
+          <div class="user-badge">
+            👤 ${escapeHtml(currentUser.username)} 
+            <span style="font-size:0.75rem; opacity:0.8;">${roleBadge}</span>
+          </div>
+        `;
+        logoutBtn.style.display = 'inline-block';
+        if (loginLink) {
+          loginLink.style.display = 'none';
+        }
+      } else {
+        userDisplayArea.innerHTML = `
+          <div class="visitor-badge">
+            🔓 访客模式 · 请先登录
+          </div>
+        `;
+        logoutBtn.style.display = 'none';
+        if (loginLink) {
+          loginLink.style.display = 'inline-flex';
+        }
+      }
+    }
+
+    /**
+     * 退出登录
+     */
+    async function performLogout() {
+      try {
+        const response = await fetch('/api/logout', { 
+          method: 'POST', 
+          credentials: 'same-origin' 
+        });
+        
+        if (response.ok) {
+          isLoggedIn = false;
+          currentUser = null;
+          isAdmin = false;
+          currentPath = '';
+          updateUserUI();
+          renderPathNav('');
+          showMessage('success', '已成功退出登录');
+          await loadDirectory();
+        } else {
+          showMessage('error', '退出失败');
+        }
+      } catch (e) {
+        console.error('退出登录失败:', e);
+        showMessage('error', '退出失败，请重试');
+      }
+    }
+
+    /**
+     * 监听浏览器后退/前进
+     */
+    window.addEventListener('popstate', function() {
+      const urlPath = window.location.pathname || '/';
+      currentPath = urlPath === '/' ? '' : urlPath.replace(/^\//, '');
+      renderPathNav(currentPath);
+      loadDirectory();
+    });
+
+    // 绑定退出按钮
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', performLogout);
+    }
+
+    /**
+     * 初始化
+     */
+    async function init() {
+      const urlPath = window.location.pathname || '/';
+      currentPath = urlPath === '/' ? '' : urlPath.replace(/^\//, '');
+      
+      await checkAuth();
+      
+      renderPathNav(currentPath);
+      
+      await loadDirectory();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+
+  })();
+</script>
+</body>
+</html>

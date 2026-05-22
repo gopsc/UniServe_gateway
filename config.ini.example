@@ -1,0 +1,23 @@
+[server]
+host = 0.0.0.0
+port = 9200
+
+[directory]
+root = ./public
+
+[ssl]
+enabled = true
+cert_file = cert.pem
+key_file = key.pem
+
+[cors]
+allowed_origins = http://localhost:5000,http://127.0.0.1:5000,http://localhost:3000
+
+[security]
+max_content_length_mb = 100
+session_lifetime_hours = 24
+rate_limit_default = 200 per day;50 per hour
+
+[proxy]
+enabled = true
+allowed_targets = http://localhost:9210

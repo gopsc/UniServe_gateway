@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>用户登录 - 移动端适配版</title>
+    <style>
+        /* ========== 基础样式 + 移动端响应式增强 ========== */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; 
+            margin: 0;
+            padding: 16px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9edf2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container { 
+            max-width: 460px; 
+            width: 100%;
+            margin: 0 auto; 
+            background-color: white; 
+            padding: 24px 20px 32px; 
+            border-radius: 28px; 
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15);
+            transition: all 0.2s ease;
+        }
+        
+        h1 { 
+            color: #1e293b; 
+            margin-bottom: 28px; 
+            text-align: center;
+            font-size: 1.9rem;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #334155;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 18px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: all 0.2s;
+            background-color: #fafcff;
+            font-family: inherit;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+            background-color: white;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .btn:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            transform: scale(1.01);
+        }
+        
+        .btn:active {
+            transform: scale(0.97);
+        }
+        
+        .btn:disabled {
+            background: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .message {
+            margin-top: 18px;
+            padding: 12px 16px;
+            border-radius: 20px;
+            display: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .message.success {
+            display: block;
+            background-color: #dcfce7;
+            color: #166534;
+            border-left: 4px solid #22c55e;
+        }
+        
+        .message.error {
+            display: block;
+            background-color: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .message.warning {
+            display: block;
+            background-color: #fef9c3;
+            color: #854d0e;
+            border-left: 4px solid #eab308;
+        }
+        
+        .message.info {
+            display: block;
+            background-color: #dbeafe;
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .message.locked {
+            display: block;
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border-left: 4px solid #dc2626;
+            font-weight: 600;
+        }
+        
+        .links {
+            margin-top: 24px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .links a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 6px 0;
+            transition: color 0.2s;
+        }
+        
+        .links a:hover {
+            color: #1e40af;
+            text-decoration: underline;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-box {
+            margin-top: 24px;
+            padding: 16px;
+            background-color: #f1f5f9;
+            border-radius: 20px;
+            color: #1e293b;
+            font-size: 0.8rem;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .info-box .title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .info-box p {
+            margin: 6px 0;
+            line-height: 1.4;
+        }
+        
+        .note-box {
+            margin-top: 18px;
+            padding: 12px 16px;
+            background-color: #fefce8;
+            border: 1px solid #fde047;
+            border-radius: 20px;
+            color: #854d0e;
+            font-size: 0.8rem;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .contact-admin {
+            margin-top: 18px;
+            padding: 14px;
+            background-color: #f8fafc;
+            border-radius: 20px;
+            border: 1px dashed #cbd5e1;
+            font-size: 0.8rem;
+            text-align: center;
+            color: #475569;
+            line-height: 1.5;
+        }
+        
+        .failed-attempts {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background-color: #fff3cd;
+            border-radius: 40px;
+            color: #856404;
+            font-size: 0.8rem;
+            display: none;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        .failed-attempts.show {
+            display: block;
+        }
+        
+        .security-note {
+            margin-top: 16px;
+            font-size: 0.7rem;
+            color: #64748b;
+            text-align: center;
+            background: #f1f5f9;
+            display: inline-block;
+            width: 100%;
+            padding: 8px;
+            border-radius: 40px;
+        }
+        
+        /* 移动端专属优化 */
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 20px;
+            }
+            .container {
+                padding: 20px 16px 28px;
+                border-radius: 24px;
+            }
+            h1 {
+                font-size: 1.7rem;
+                margin-bottom: 24px;
+            }
+            input[type="text"],
+            input[type="password"] {
+                padding: 12px 14px;
+                border-radius: 16px;
+                font-size: 15px;
+            }
+            .btn {
+                padding: 12px;
+                font-size: 16px;
+            }
+            .info-box, .note-box, .contact-admin {
+                padding: 12px;
+                border-radius: 18px;
+            }
+            .links a {
+                font-size: 0.8rem;
+            }
+        }
+        
+        /* 小屏手机 */
+        @media (max-width: 380px) {
+            .container {
+                padding: 16px 14px 24px;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            .info-box p, .contact-admin {
+                font-size: 0.7rem;
+            }
+        }
+        
+        /* 触摸优化 */
+        button, a, input {
+            touch-action: manipulation;
+        }
+        
+        /* 平滑滚动 */
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📁 文件浏览器</h1>
+
+        <!-- 登录表单 - 接口和功能完全不变 -->
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label>👤 用户名</label>
+                <input type="text" id="loginUsername" required autofocus autocomplete="off" placeholder="请输入用户名">
+            </div>
+            <div class="form-group">
+                <label>🔒 密码</label>
+                <input type="password" id="loginPassword" required placeholder="请输入密码">
+            </div>
+
+            <!-- 失败尝试提示 -->
+            <div id="failedAttempts" class="failed-attempts"></div>
+
+            <button type="submit" class="btn" id="loginBtn">登录</button>
+        </form>
+
+        <div id="message" class="message"></div>
+
+        <!-- 安全提示 -->
+        <div class="security-note">
+            ⚠️ 5次失败尝试将锁定账户15分钟
+        </div>
+
+        <!-- 注册功能关闭提示 -->
+        <div class="note-box">
+            ⚠️ 注册功能已关闭，请联系管理员创建账号
+        </div>
+
+        <!-- 联系管理员信息 -->
+        <div class="contact-admin">
+            📧 管理员邮箱: 1776177662@qq.com<br>
+            📞 联系电话: 请咨询系统管理员
+        </div>
+
+        <div class="links">
+            <a href="/">🏠 返回首页</a>
+            <a href="#" onclick="showHelp(); return false;">❓ 帮助</a>
+        </div>
+
+        <!-- 系统说明 -->
+        <div class="info-box">
+            <p class="title">ℹ️ 系统说明</p>
+            <p>• 本系统需要登录才能访问文件</p>
+            <p>• 登录后可上传和下载文件</p>
+            <p>• 如有问题请联系系统管理员</p>
+            <p style="margin-top: 8px; color: #475569;">版本: 2.0.0</p>
+        </div>
+    </div>
+
+    <script>
+        // ========== 以下所有JavaScript代码保持原样，未修改任何接口/功能逻辑 ==========
+        // 仅增加移动端友好的辅助提示，但业务逻辑完全不变
+        
+        // 显示消息
+        function showMessage(type, text) {
+            const message = document.getElementById('message');
+            message.className = `message ${type}`;
+            message.textContent = text;
+            
+            // 3秒后自动隐藏成功消息
+            if (type === 'success') {
+                setTimeout(() => {
+                    message.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // 显示失败尝试信息
+        function showFailedAttempts(attempts, lockedUntil) {
+            const container = document.getElementById('failedAttempts');
+            
+            if (lockedUntil) {
+                const lockTime = new Date(lockedUntil).toLocaleTimeString();
+                container.textContent = `🔒 账户已锁定，将在 ${lockTime} 后解锁`;
+                container.className = 'failed-attempts show';
+            } else if (attempts > 0) {
+                const remaining = 5 - attempts;
+                container.textContent = `⚠️ 登录失败 ${attempts}/5 次，剩余 ${remaining} 次尝试机会`;
+                container.className = 'failed-attempts show';
+            } else {
+                container.className = 'failed-attempts';
+                container.textContent = '';
+            }
+        }
+
+        // 设置按钮加载状态
+        function setButtonLoading(buttonId, isLoading) {
+            const btn = document.getElementById(buttonId);
+            if (isLoading) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="loading"></span> 登录中...';
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '登录';
+            }
+        }
+
+        // 显示帮助信息
+        function showHelp() {
+            showMessage('info', '默认管理员账号: admin\n密码: Admin@123456\n首次登录请修改密码');
+        }
+
+        // 处理登录 - 完全保留原始API调用
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username || !password) {
+                showMessage('error', '请输入用户名和密码');
+                return;
+            }
+
+            setButtonLoading('loginBtn', true);
+
+            try {
+                console.log('Sending login request for user:', username);
+                
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                console.log('Login response:', response.status, data);
+
+                if (response.ok) {
+                    showMessage('success', '登录成功！正在跳转...');
+                    
+                    if (data.token) {
+                        localStorage.setItem('token', data.token);
+                    }
+                    
+                    if (data.user) {
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                    }
+                    
+                    setTimeout(() => {
+                        if (data.filesystem_enabled) {
+                            window.location.href = '/';
+                        } else {
+                            window.location.href = '/api/users';
+                        }
+                    }, 1500);
+                } else {
+                    if (response.status === 403) {
+                        if (data.error && data.error.includes('锁定')) {
+                            showMessage('locked', '🔒 ' + data.error);
+                        } else {
+                            showMessage('error', data.error || '账户已被禁用');
+                        }
+                    } else if (response.status === 401) {
+                        showMessage('error', data.error || '用户名或密码错误');
+                        
+                        if (data.failed_attempts !== undefined) {
+                            showFailedAttempts(data.failed_attempts);
+                        }
+                    } else if (response.status === 429) {
+                        showMessage('warning', '登录尝试过于频繁，请稍后再试');
+                    } else {
+                        showMessage('error', data.error || '登录失败，请稍后重试');
+                    }
+                    
+                    document.getElementById('loginPassword').focus();
+                    document.getElementById('loginPassword').select();
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('error', '网络错误，请检查服务器连接');
+            } finally {
+                setButtonLoading('loginBtn', false);
+            }
+        }
+
+        // 检查是否已登录
+        async function checkAuth() {
+            try {
+                console.log('Checking authentication status...');
+                
+                const response = await fetch('/api/check-auth', {
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                console.log('Auth check response:', data);
+
+                if (data.authenticated) {
+                    showMessage('info', '您已登录，正在跳转...');
+                    
+                    setTimeout(() => {
+                        if (data.filesystem_enabled) {
+                            window.location.href = '/';
+                        } else {
+                            window.location.href = '/api/users';
+                        }
+                    }, 1500);
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                if (error.message.includes('fetch')) {
+                    showMessage('error', '无法连接到服务器，请确认服务是否已启动');
+                }
+            }
+        }
+
+        // 清除表单缓存
+        function clearFormCache() {
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+        }
+
+        // 回车键快速登录
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const form = document.getElementById('loginForm');
+                if (form && document.activeElement !== document.getElementById('loginBtn')) {
+                    form.dispatchEvent(new Event('submit', { cancelable: true }));
+                }
+            }
+        });
+
+        // 输入框获得焦点时清除错误消息
+        document.getElementById('loginUsername').addEventListener('focus', function() {
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) msgDiv.style.display = 'none';
+            const failedDiv = document.getElementById('failedAttempts');
+            if (failedDiv) failedDiv.className = 'failed-attempts';
+        });
+
+        document.getElementById('loginPassword').addEventListener('focus', function() {
+            const msgDiv = document.getElementById('message');
+            if (msgDiv) msgDiv.style.display = 'none';
+            const failedDiv = document.getElementById('failedAttempts');
+            if (failedDiv) failedDiv.className = 'failed-attempts';
+        });
+
+        // 页面加载时检查登录状态
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Login page loaded - mobile adapted');
+            
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            checkAuth();
+            clearFormCache();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                showMessage('error', decodeURIComponent(error));
+            }
+        });
+
+        // 防止浏览器自动填充（保持原有逻辑）
+        window.onload = function() {
+            setTimeout(function() {
+                const userField = document.getElementById('loginUsername');
+                const passField = document.getElementById('loginPassword');
+                if (userField) userField.value = '';
+                if (passField) passField.value = '';
+            }, 100);
+        };
+    </script>
+</body>
+</html>
