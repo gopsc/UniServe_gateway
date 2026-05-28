@@ -244,6 +244,27 @@
       font-weight: 500;
     }
 
+    /* 视频和音频卡片特殊样式 */
+    .app-card.video-card {
+      background: linear-gradient(135deg, #fef3f2 0%, #fff5f5 100%);
+      border-color: #fecaca;
+    }
+
+    .app-card.video-card:hover {
+      background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
+      border-color: #fca5a5;
+    }
+
+    .app-card.audio-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+      border-color: #bfdbfe;
+    }
+
+    .app-card.audio-card:hover {
+      background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+      border-color: #93c5fd;
+    }
+
     /* 文件卡片特殊样式 */
     .app-card.file-card {
       background: #fafcff;
@@ -331,6 +352,111 @@
       font-weight: 600;
     }
 
+    /* ========== 视频播放器模态框 ========== */
+    .video-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 9999;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .video-modal.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .video-modal-content {
+      width: 100%;
+      max-width: 1200px;
+      max-height: 90vh;
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .video-close-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+
+    .video-close-btn:hover {
+      background: rgba(255, 255, 255, 0.4);
+      transform: scale(1.1);
+    }
+
+    .video-player-wrapper {
+      position: relative;
+      width: 100%;
+      background: #000;
+    }
+
+    .video-player-wrapper video {
+      width: 100%;
+      display: block;
+      max-height: 80vh;
+    }
+
+    .video-info-bar {
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #ccc;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      backdrop-filter: blur(20px);
+    }
+
+    .video-info-bar span {
+      font-size: 14px;
+    }
+
+    .video-download-btn {
+      padding: 6px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.3s;
+      text-decoration: none;
+    }
+
+    .video-download-btn:hover {
+      background: #0056b3;
+      transform: scale(1.05);
+    }
+
     /* 响应式调整 */
     @media (max-width: 600px) {
       .app-grid {
@@ -346,6 +472,16 @@
       }
       .container {
         padding: 16px;
+      }
+      
+      .video-modal-content {
+        max-height: 100vh;
+        border-radius: 0;
+      }
+      
+      .video-info-bar {
+        padding: 8px 12px;
+        font-size: 12px;
       }
     }
 
@@ -436,6 +572,24 @@
   </div>
 </div>
 
+<!-- 视频播放器模态框 -->
+<div class="video-modal" id="videoModal">
+  <div class="video-modal-content">
+    <button class="video-close-btn" id="videoCloseBtn">✕</button>
+    <div class="video-player-wrapper">
+      <video id="videoPlayer" controls crossorigin="anonymous">
+        您的浏览器不支持视频播放
+      </video>
+    </div>
+    <div class="video-info-bar">
+      <span id="videoFileName">视频文件</span>
+      <span id="videoFileSize">大小: -</span>
+      <span id="videoDuration">时长: -</span>
+      <a href="#" id="videoDownloadBtn" class="video-download-btn" style="display:none;">下载视频</a>
+    </div>
+  </div>
+</div>
+
 <div id="liveMessage" class="message"></div>
 
 <script>
@@ -463,6 +617,15 @@
     const logoutBtn = document.getElementById('logoutButton');
     const loginLink = document.getElementById('loginLink');
     const messageDiv = document.getElementById('liveMessage');
+
+    // 视频播放器相关元素
+    const videoModal = document.getElementById('videoModal');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoCloseBtn = document.getElementById('videoCloseBtn');
+    const videoFileName = document.getElementById('videoFileName');
+    const videoFileSize = document.getElementById('videoFileSize');
+    const videoDuration = document.getElementById('videoDuration');
+    const videoDownloadBtn = document.getElementById('videoDownloadBtn');
 
     // Emoji回退图标（当自定义图标不可用时使用）
     const fallbackEmojis = {
@@ -494,6 +657,21 @@
     }
 
     /**
+     * 格式化视频时长
+     */
+    function formatDuration(seconds) {
+      if (!seconds || isNaN(seconds)) return '-';
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      
+      if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      }
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    /**
      * 获取文件的扩展名分类（用于回退图标）
      */
     function getFileCategory(filename) {
@@ -502,8 +680,8 @@
       
       const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'];
       const docExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv'];
-      const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'];
-      const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'];
+      const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v', '3gp', 'ogv'];
+      const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
       const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'];
       const codeExts = ['js', 'py', 'html', 'css', 'json', 'xml', 'java', 'cpp', 'c', 'php', 'rb', 'go', 'ts', 'jsx', 'tsx', 'vue'];
       
@@ -519,10 +697,32 @@
     }
 
     /**
+     * 检查文件是否为视频文件
+     */
+    function isVideoFile(filename) {
+      if (!filename) return false;
+      const ext = filename.split('.').pop().toLowerCase();
+      const videoExts = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v', '3gp', 'ogv', 'ts'];
+      return videoExts.includes(ext);
+    }
+
+    /**
+     * 检查文件是否为音频文件
+     */
+    function isAudioFile(filename) {
+      if (!filename) return false;
+      const ext = filename.split('.').pop().toLowerCase();
+      const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
+      return audioExts.includes(ext);
+    }
+
+    /**
      * 获取回退的Emoji图标
      */
-    function getFallbackEmoji(filename, isDir) {
+    function getFallbackEmoji(filename, isDir, itemType) {
       if (isDir) return fallbackEmojis['dir'];
+      if (itemType === 'video') return '🎬';
+      if (itemType === 'audio') return '🎵';
       const category = getFileCategory(filename);
       return fallbackEmojis[category] || fallbackEmojis['default'];
     }
@@ -649,7 +849,7 @@
     /**
      * 渲染图标HTML
      */
-    function renderIconHTML(filename, isDir) {
+    function renderIconHTML(filename, isDir, itemType) {
       if (isDir) {
         return `<span class="icon-emoji">📁</span>`;
       }
@@ -657,12 +857,12 @@
       const customIcon = iconCache.get(filename);
       
       if (customIcon) {
-        return `<img src="${escapeHtml(customIcon)}" alt="${escapeHtml(filename)}" onerror="this.parentElement.innerHTML='<span class=\\'icon-emoji\\'>${getFallbackEmoji(filename, false)}</span>'">`;
+        return `<img src="${escapeHtml(customIcon)}" alt="${escapeHtml(filename)}" onerror="this.parentElement.innerHTML='<span class=\\'icon-emoji\\'>${getFallbackEmoji(filename, false, itemType)}</span>'">`;
       } else if (iconCache.has(filename) && iconCache.get(filename) === null) {
-        const emoji = getFallbackEmoji(filename, false);
+        const emoji = getFallbackEmoji(filename, false, itemType);
         return `<span class="icon-emoji">${emoji}</span>`;
       } else {
-        const emoji = getFallbackEmoji(filename, false);
+        const emoji = getFallbackEmoji(filename, false, itemType);
         return `<span class="icon-emoji icon-placeholder" data-filename="${escapeHtml(filename)}">${emoji}</span>`;
       }
     }
@@ -734,13 +934,43 @@
       visibleItems.forEach(item => {
         const safeName = escapeHtml(item.name);
         const isDir = item.type === 'dir';
-        const iconHTML = renderIconHTML(item.name, isDir);
-        const metaText = isDir ? '文件夹' : (formatFileSize(item.size) || '文件');
+        const itemType = item.type || (isDir ? 'dir' : 'file');
+        const iconHTML = renderIconHTML(item.name, isDir, itemType);
+        
+        let metaText = '文件';
+        if (isDir) {
+          metaText = '文件夹';
+        } else if (itemType === 'video') {
+          metaText = '🎬 视频 · ' + formatFileSize(item.size);
+        } else if (itemType === 'audio') {
+          metaText = '🎵 音频 · ' + formatFileSize(item.size);
+        } else {
+          metaText = formatFileSize(item.size) || '文件';
+        }
+        
         const itemPath = item.path || item.name;
 
         if (isDir) {
           html += `
             <div class="app-card" data-navigate="${escapeHtml(itemPath)}" title="打开文件夹: ${safeName}">
+              <div class="card-icon">${iconHTML}</div>
+              <div class="card-name">${safeName}</div>
+              <div class="card-meta">${metaText}</div>
+            </div>
+          `;
+        } else if (itemType === 'video') {
+          // 视频文件卡片
+          html += `
+            <div class="app-card video-card" data-video="${escapeHtml(itemPath)}" title="播放视频: ${safeName}">
+              <div class="card-icon">${iconHTML}</div>
+              <div class="card-name">${safeName}</div>
+              <div class="card-meta">${metaText}</div>
+            </div>
+          `;
+        } else if (itemType === 'audio') {
+          // 音频文件卡片
+          html += `
+            <div class="app-card audio-card" data-video="${escapeHtml(itemPath)}" title="播放音频: ${safeName}">
               <div class="card-icon">${iconHTML}</div>
               <div class="card-name">${safeName}</div>
               <div class="card-meta">${metaText}</div>
@@ -764,6 +994,7 @@
       gridContainer.innerHTML = html;
       bindCardNavigation();
       bindFileOpen();
+      bindVideoPlay();
       
       updatePlaceholderIcons();
     }
@@ -795,6 +1026,161 @@
         });
       });
     }
+
+    /**
+     * 绑定视频/音频卡片点击播放
+     */
+    function bindVideoPlay() {
+      document.querySelectorAll('.app-card[data-video]').forEach(card => {
+        card.addEventListener('click', function(e) {
+          const filePath = this.getAttribute('data-video');
+          if (filePath) {
+            playMedia(filePath, this);
+          }
+        });
+      });
+    }
+
+    /**
+     * 播放视频或音频文件
+     */
+    function playMedia(filePath, cardElement) {
+      const fileName = filePath.split('/').pop();
+      const streamUrl = '/video/' + filePath;
+      
+      // 更新播放器信息
+      videoFileName.textContent = fileName;
+      videoFileSize.textContent = '加载中...';
+      videoDuration.textContent = '时长: -';
+      
+      // 设置视频源
+      videoPlayer.innerHTML = ''; // 清空现有源
+      
+      const source = document.createElement('source');
+      source.src = streamUrl;
+      source.type = getMimeType(fileName);
+      videoPlayer.appendChild(source);
+      
+      // 显示模态框
+      videoModal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      
+      // 加载视频
+      videoPlayer.load();
+      
+      // 获取文件信息
+      fetchVideoInfo(filePath);
+      
+      // 设置下载链接
+      if (isLoggedIn) {
+        videoDownloadBtn.href = '/' + filePath + '?download=true';
+        videoDownloadBtn.style.display = 'inline-block';
+      } else {
+        videoDownloadBtn.style.display = 'none';
+      }
+    }
+
+    /**
+     * 获取视频文件信息
+     */
+    async function fetchVideoInfo(filePath) {
+      try {
+        const response = await fetch('/api/video/info/' + filePath, {
+          credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            videoFileName.textContent = data.name;
+            videoFileSize.textContent = '大小: ' + (data.size_mb || formatFileSize(data.size));
+          }
+        }
+      } catch (error) {
+        console.error('获取视频信息失败:', error);
+      }
+    }
+
+    /**
+     * 获取MIME类型
+     */
+    function getMimeType(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      const mimeTypes = {
+        'mp4': 'video/mp4',
+        'webm': 'video/webm',
+        'ogg': 'video/ogg',
+        'ogv': 'video/ogg',
+        'avi': 'video/x-msvideo',
+        'mov': 'video/quicktime',
+        'flv': 'video/x-flv',
+        'mkv': 'video/x-matroska',
+        'wmv': 'video/x-ms-wmv',
+        'm4v': 'video/x-m4v',
+        'mp3': 'audio/mpeg',
+        'wav': 'audio/wav',
+        'flac': 'audio/flac',
+        'aac': 'audio/aac',
+        'm4a': 'audio/mp4'
+      };
+      return mimeTypes[ext] || 'video/mp4';
+    }
+
+    /**
+     * 关闭视频播放器
+     */
+    function closeVideoPlayer() {
+      videoPlayer.pause();
+      videoPlayer.innerHTML = '';
+      videoModal.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    // 关闭视频播放器事件
+    videoCloseBtn.addEventListener('click', closeVideoPlayer);
+    
+    videoModal.addEventListener('click', function(e) {
+      if (e.target === videoModal) {
+        closeVideoPlayer();
+      }
+    });
+
+    // 键盘快捷键关闭视频
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && videoModal.classList.contains('active')) {
+        closeVideoPlayer();
+      }
+    });
+
+    // 视频加载完成事件
+    videoPlayer.addEventListener('loadedmetadata', function() {
+      const duration = videoPlayer.duration;
+      videoDuration.textContent = '时长: ' + formatDuration(duration);
+    });
+
+    // 视频错误处理
+    videoPlayer.addEventListener('error', function(e) {
+      const error = videoPlayer.error;
+      let message = '视频加载失败';
+      
+      switch(error?.code) {
+        case 1:
+          message = '视频加载中止';
+          break;
+        case 2:
+          message = '网络错误，无法加载视频';
+          break;
+        case 3:
+          message = '视频解码失败';
+          break;
+        case 4:
+          message = '视频格式不支持';
+          break;
+      }
+      
+      showMessage('error', message);
+      videoDuration.textContent = '播放失败';
+    });
 
     /**
      * 打开文件（在新标签页中）

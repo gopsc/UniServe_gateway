@@ -212,6 +212,59 @@ if file_config['proxy'].get('allowed_targets'):
     PROXY_ALLOWED_TARGETS = [target.strip() for target in file_config['proxy']['allowed_targets'].split(',') if target.strip()]
 logger.info(f"Proxy enabled: {PROXY_ENABLED}, allowed targets: {PROXY_ALLOWED_TARGETS}")
 
+# ==================== 视频文件支持的MIME类型 ====================
+VIDEO_MIME_TYPES = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.ogv': 'video/ogg',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.flv': 'video/x-flv',
+    '.mkv': 'video/x-matroska',
+    '.wmv': 'video/x-ms-wmv',
+    '.m4v': 'video/x-m4v',
+    '.3gp': 'video/3gpp',
+    '.3g2': 'video/3gpp2',
+    '.ts': 'video/mp2t',
+    '.m3u8': 'application/x-mpegURL',
+    '.mpd': 'application/dash+xml',
+}
+
+AUDIO_MIME_TYPES = {
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.oga': 'audio/ogg',
+    '.flac': 'audio/flac',
+    '.aac': 'audio/aac',
+    '.m4a': 'audio/mp4',
+    '.wma': 'audio/x-ms-wma',
+}
+
+def is_video_file(filename):
+    """检查文件是否为视频文件"""
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in VIDEO_MIME_TYPES
+
+def is_audio_file(filename):
+    """检查文件是否为音频文件"""
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in AUDIO_MIME_TYPES
+
+def is_media_file(filename):
+    """检查文件是否为媒体文件（视频或音频）"""
+    return is_video_file(filename) or is_audio_file(filename)
+
+def get_media_mime_type(filename):
+    """获取媒体文件的MIME类型"""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in VIDEO_MIME_TYPES:
+        return VIDEO_MIME_TYPES[ext]
+    if ext in AUDIO_MIME_TYPES:
+        return AUDIO_MIME_TYPES[ext]
+    return 'application/octet-stream'
+
 # ==================== 权限检查辅助函数 ====================
 def check_file_access(file_path, operation='read'):
     """
@@ -997,15 +1050,27 @@ def get_file_list():
             
             modified_time = datetime.datetime.fromtimestamp(item_stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
             
+            # 判断文件类型
+            file_type = 'file'
+            if is_dir:
+                file_type = 'dir'
+            elif is_video_file(item):
+                file_type = 'video'
+            elif is_audio_file(item):
+                file_type = 'audio'
+            
             items.append({
                 'name': item,
-                'type': 'dir' if is_dir else 'file',
+                'type': file_type,
                 'path': item_rel_path,
                 'size': size,
                 'modified': modified_time,
                 'permissions': oct(item_stat.st_mode)[-3:],
                 'owner_uid': item_stat.st_uid,
-                'owner_gid': item_stat.st_gid
+                'owner_gid': item_stat.st_gid,
+                'is_video': is_video_file(item),
+                'is_audio': is_audio_file(item),
+                'mime_type': get_media_mime_type(item) if is_media_file(item) else None
             })
         
         items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
@@ -1017,7 +1082,9 @@ def get_file_list():
             'items': items,
             'total_items': len(items),
             'total_dirs': sum(1 for item in items if item['type'] == 'dir'),
-            'total_files': sum(1 for item in items if item['type'] == 'file')
+            'total_files': sum(1 for item in items if item['type'] in ['file', 'video', 'audio']),
+            'total_videos': sum(1 for item in items if item['type'] == 'video'),
+            'total_audios': sum(1 for item in items if item['type'] == 'audio')
         }
         
         if 'user_id' in session:
@@ -1035,151 +1102,210 @@ def get_file_list():
         logger.error(f"Get file list error: {str(e)}")
         return jsonify({'error': f'获取文件列表失败: {str(e)}'}), 500
 
-# ==================== 文件读取和保存视图 ====================
-#@app.route('/read-file/<path:file_path>', methods=['GET'])
-#@login_required
-#@filesystem_required
-#def read_file(file_path):
-#    """读取文件内容"""
-#    try:
-#        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
-#        
-#        has_access, error_msg = check_file_access(full_path, 'read')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(full_path):
-#            raise APIError(f'文件不存在: {file_path}', 404)
-#        
-#        if not os.path.isfile(full_path):
-#            raise APIError(f'路径不是文件: {file_path}', 400)
-#        
-#        file_size = os.path.getsize(full_path)
-#        if file_size > 10 * 1024 * 1024:
-#            raise APIError('文件过大，无法编辑', 400)
-#        
-#        content = None
-#        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1', 'cp1252']
-#        
-#        for encoding in encodings:
-#            try:
-#                with open(full_path, 'r', encoding=encoding) as f:
-#                    content = f.read()
-#                break
-#            except UnicodeDecodeError:
-#                continue
-#            except Exception:
-#                continue
-#        
-#        if content is None:
-#            with open(full_path, 'rb') as f:
-#                binary_data = f.read(1024)
-#                content = f"二进制文件，无法以文本方式显示。前 {len(binary_data)} 字节的十六进制表示:\n"
-#                content += ' '.join(f'{b:02x}' for b in binary_data[:100])
-#                if len(binary_data) > 100:
-#                    content += ' ...'
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='read_file',
-#            filename=os.path.basename(full_path),
-#            file_path=full_path,
-#            file_size=file_size
-#        )
-#        
-#        return jsonify({
-#            'success': True,
-#            'content': content,
-#            'path': file_path,
-#            'size': file_size,
-#            'is_binary': content.startswith('二进制文件')
-#        })
-#        
-#    except APIError as e:
-#        return jsonify({'error': e.message}), e.status_code
-#    except Exception as e:
-#        logger.error(f"Read file error: {str(e)}")
-#        return jsonify({'error': f'读取文件失败: {str(e)}'}), 500
-
-#@app.route('/save-file', methods=['POST'])
-#@login_required
-#@filesystem_required
-#def save_file():
-#    """保存文件内容"""
-#    try:
-#        data = request.get_json()
-#        if not data:
-#            raise APIError('请提供JSON格式的数据', 400)
-#        
-#        file_path = data.get('path')
-#        content = data.get('content', '')
-#        
-#        if not file_path:
-#            raise APIError('请提供文件路径', 400)
-#        
-#        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
-#        
-#        has_access, error_msg = check_file_access(full_path, 'write')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        file_dir = os.path.dirname(full_path)
-#        if file_dir:
-#            os.makedirs(file_dir, exist_ok=True)
-#        
-#        try:
-#            with open(full_path, 'w', encoding='utf-8') as f:
-#                f.write(content)
-#        except UnicodeEncodeError:
-#            with open(full_path, 'w', encoding='utf-8-sig') as f:
-#                f.write(content)
-#        
-#        file_size = len(content.encode('utf-8', errors='ignore'))
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='save_file',
-#            filename=os.path.basename(full_path),
-#            file_path=full_path,
-#            file_size=file_size
-#        )
-#        
-#        return jsonify({
-#            'success': True,
-#            'path': file_path,
-#            'size': file_size,
-#            'message': '文件保存成功'
-#        })
-#        
-#    except APIError as e:
-#        return jsonify({'error': e.message}), e.status_code
-#    except Exception as e:
-#        logger.error(f"Save file error: {str(e)}")
-#        return jsonify({'error': f'保存文件失败: {str(e)}'}), 500
-
-# ==================== 数据库初始化 ====================
-def init_database():
-    with app.app_context():
-        db.create_all()
-        if User.query.first() is None:
-            default_user = User(username='admin')
-            default_user.set_password('Admin@123456')
-            db.session.add(default_user)
-            db.session.commit()
-            logger.info("Database initialized with default admin user")
-            print("\n" + "="*50)
-            print("✅ 数据库初始化完成！")
-            print("="*50)
-            print("默认管理员账户：")
-            print("  📝 用户名: admin")
-            print("  🔑 密码: Admin@123456")
-            print("="*50)
+# ==================== 视频文件播放接口 ====================
+@app.route('/video/<path:file_path>', methods=['GET'])
+@filesystem_required
+def stream_video(file_path):
+    """视频文件流式播放，支持Range请求"""
+    try:
+        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
+        
+        # 检查用户权限
+        if 'user_id' in session:
+            has_access, error_msg = check_file_access(full_path, 'read')
+            if not has_access:
+                return jsonify({'error': error_msg}), 403
         else:
-            print("\n" + "="*50)
-            print("ℹ️  数据库已存在用户，跳过初始化")
-            print("="*50 + "\n")
+            # 未登录用户不能访问 users 目录
+            if 'users' in file_path.replace('\\', '/').split('/'):
+                return jsonify({'error': '请先登录后访问 users 目录'}), 401
+        
+        if not os.path.exists(full_path):
+            raise APIError(f'文件不存在: {file_path}', 404)
+        
+        if not os.path.isfile(full_path):
+            raise APIError(f'路径不是文件: {file_path}', 400)
+        
+        if not is_video_file(full_path) and not is_audio_file(full_path):
+            raise APIError(f'不支持的文件类型: {file_path}', 400)
+        
+        file_size = os.path.getsize(full_path)
+        file_name = os.path.basename(full_path)
+        mime_type = get_media_mime_type(full_path)
+        
+        # 处理Range请求（支持视频拖动）
+        range_header = request.headers.get('Range', None)
+        
+        if range_header:
+            # 解析Range请求
+            byte_range = range_header.replace('bytes=', '').split('-')
+            start = int(byte_range[0]) if byte_range[0] else 0
+            end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
+            
+            if start >= file_size:
+                return jsonify({'error': '请求范围超出文件大小'}), 416
+            
+            length = end - start + 1
+            
+            # 读取指定范围的数据
+            with open(full_path, 'rb') as f:
+                f.seek(start)
+                data = f.read(length)
+            
+            # 记录播放操作
+            if 'user_id' in session:
+                log_file_operation(
+                    user_id=session['user_id'],
+                    username=session['username'],
+                    operation='stream_video',
+                    filename=file_name,
+                    file_path=full_path,
+                    file_size=file_size
+                )
+            
+            response = Response(
+                data,
+                206,  # Partial Content
+                mimetype=mime_type,
+                direct_passthrough=True
+            )
+            response.headers.add('Content-Range', f'bytes {start}-{end}/{file_size}')
+            response.headers.add('Accept-Ranges', 'bytes')
+            response.headers.add('Content-Length', str(length))
+            response.headers.add('Cache-Control', 'no-cache')
+            
+            return response
+        else:
+            # 完整文件请求
+            # 记录播放操作
+            if 'user_id' in session:
+                log_file_operation(
+                    user_id=session['user_id'],
+                    username=session['username'],
+                    operation='play_video',
+                    filename=file_name,
+                    file_path=full_path,
+                    file_size=file_size
+                )
+            
+            return send_file(
+                full_path,
+                mimetype=mime_type,
+                as_attachment=False,
+                download_name=file_name,
+                conditional=True
+            )
+        
+    except APIError as e:
+        return jsonify({'error': e.message}), e.status_code
+    except Exception as e:
+        logger.error(f"Video streaming error: {str(e)}")
+        return jsonify({'error': f'视频播放失败: {str(e)}'}), 500
+
+@app.route('/api/video/info/<path:file_path>', methods=['GET'])
+@filesystem_required
+def get_video_info(file_path):
+    """获取视频文件信息"""
+    try:
+        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
+        
+        # 检查用户权限
+        if 'user_id' in session:
+            has_access, error_msg = check_file_access(full_path, 'read')
+            if not has_access:
+                return jsonify({'error': error_msg}), 403
+        
+        if not os.path.exists(full_path):
+            raise APIError(f'文件不存在: {file_path}', 404)
+        
+        if not os.path.isfile(full_path):
+            raise APIError(f'路径不是文件: {file_path}', 400)
+        
+        file_size = os.path.getsize(full_path)
+        file_name = os.path.basename(full_path)
+        file_ext = os.path.splitext(full_path)[1].lower()
+        
+        # 获取文件修改时间
+        modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(full_path))
+        
+        video_info = {
+            'success': True,
+            'name': file_name,
+            'path': file_path,
+            'size': file_size,
+            'size_mb': round(file_size / (1024 * 1024), 2),
+            'extension': file_ext,
+            'mime_type': get_media_mime_type(full_path),
+            'is_video': is_video_file(full_path),
+            'is_audio': is_audio_file(full_path),
+            'modified': modified_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'stream_url': f'/video/{file_path}',
+            'download_url': f'/download/{file_path}' if 'user_id' in session else None
+        }
+        
+        return jsonify(video_info)
+        
+    except APIError as e:
+        return jsonify({'error': e.message}), e.status_code
+    except Exception as e:
+        logger.error(f"Get video info error: {str(e)}")
+        return jsonify({'error': f'获取视频信息失败: {str(e)}'}), 500
+
+# ==================== 视频文件API端点 ====================
+@app.route('/api/videos', methods=['GET'])
+@filesystem_required
+def get_video_list():
+    """获取所有视频文件列表"""
+    try:
+        path = request.args.get('path', '')
+        
+        if 'user_id' not in session:
+            if path and 'users' in path.replace('\\', '/').split('/'):
+                return jsonify({'error': '请先登录后访问 users 目录'}), 401
+        
+        full_path = safe_path_join(HTML_ROOT_DIR, path) if path else HTML_ROOT_DIR
+        
+        if not os.path.exists(full_path):
+            raise APIError(f'目录不存在: {path}', 404)
+        
+        videos = []
+        
+        for root, dirs, files in os.walk(full_path):
+            # 跳过__pycache__目录
+            dirs[:] = [d for d in dirs if d != '__pycache__']
+            
+            for file in files:
+                if is_video_file(file):
+                    file_full_path = os.path.join(root, file)
+                    file_rel_path = os.path.relpath(file_full_path, HTML_ROOT_DIR)
+                    file_size = os.path.getsize(file_full_path)
+                    modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_full_path))
+                    
+                    videos.append({
+                        'name': file,
+                        'path': file_rel_path,
+                        'size': file_size,
+                        'size_mb': round(file_size / (1024 * 1024), 2),
+                        'extension': os.path.splitext(file)[1].lower(),
+                        'mime_type': get_media_mime_type(file),
+                        'modified': modified_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'stream_url': f'/video/{file_rel_path}',
+                    })
+        
+        # 按修改时间排序
+        videos.sort(key=lambda x: x['modified'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'videos': videos,
+            'total': len(videos)
+        })
+        
+    except APIError as e:
+        return jsonify({'error': e.message}), e.status_code
+    except Exception as e:
+        logger.error(f"Get video list error: {str(e)}")
+        return jsonify({'error': f'获取视频列表失败: {str(e)}'}), 500
 
 # ==================== serve_html 路由 ====================
 @app.route('/', defaults={'path': ''})
@@ -1230,6 +1356,51 @@ def serve_html(path=''):
                     mimetype='application/octet-stream'
                 )
             else:
+                # 如果是视频文件，重定向到视频流播放页面
+                if is_video_file(real_path) or is_audio_file(real_path):
+                    # 读取视频播放器模板
+                    player_template_path = os.path.join(os.path.dirname(__file__), 'templates', 'video_player.html')
+                    
+                    if os.path.exists(player_template_path):
+                        with open(player_template_path, 'r', encoding='utf-8') as f:
+                            player_html = f.read()
+                        
+                        # 获取文件信息
+                        file_size = os.path.getsize(real_path)
+                        file_name = os.path.basename(real_path)
+                        mime_type = get_media_mime_type(real_path)
+                        
+                        # 注入视频信息
+                        video_data = {
+                            'name': file_name,
+                            'path': path,
+                            'size': file_size,
+                            'size_mb': round(file_size / (1024 * 1024), 2),
+                            'mime_type': mime_type,
+                            'is_video': is_video_file(real_path),
+                            'is_audio': is_audio_file(real_path),
+                            'stream_url': f'/video/{path}',
+                            'download_url': f'/{path}?download=true' if 'user_id' in session else None
+                        }
+                        
+                        script_tag = f'''
+                        <script>
+                            window.__VIDEO_DATA__ = {json.dumps(video_data, ensure_ascii=False)};
+                        </script>
+                        </head>
+                        '''
+                        
+                        if '</head>' in player_html:
+                            rendered_html = player_html.replace('</head>', script_tag)
+                        else:
+                            rendered_html = script_tag.replace('</head>', '') + player_html
+                        
+                        return Response(rendered_html, mimetype='text/html')
+                    else:
+                        # 如果没有播放器模板，直接返回视频文件
+                        return send_file(real_path, mimetype=mime_type)
+                
+                # 对于其他文件类型，直接返回文件内容
                 with open(real_path, 'rb') as f:
                     file_content = f.read()
                 
@@ -1267,12 +1438,23 @@ def serve_html(path=''):
                         continue
                 
                 item_rel_path = os.path.join(path, item) if path else item
+                
+                item_type = 'file'
+                if os.path.isdir(item_path):
+                    item_type = 'dir'
+                elif is_video_file(item):
+                    item_type = 'video'
+                elif is_audio_file(item):
+                    item_type = 'audio'
+                
                 items.append({
                     'name': item,
-                    'type': 'dir' if os.path.isdir(item_path) else 'file',
+                    'type': item_type,
                     'path': item_rel_path,
                     'size': os.path.getsize(item_path) if os.path.isfile(item_path) else 0,
-                    'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S')
+                    'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S'),
+                    'is_video': is_video_file(item),
+                    'is_audio': is_audio_file(item)
                 })
             return jsonify(items)
         
@@ -1292,12 +1474,23 @@ def serve_html(path=''):
             else:
                 item_rel_path = item
             
+            item_type = 'file'
+            if os.path.isdir(item_path):
+                item_type = 'dir'
+            elif is_video_file(item):
+                item_type = 'video'
+            elif is_audio_file(item):
+                item_type = 'audio'
+            
             items.append({
                 'name': item,
-                'type': 'dir' if os.path.isdir(item_path) else 'file',
+                'type': item_type,
                 'path': item_rel_path,
                 'size': os.path.getsize(item_path) if os.path.isfile(item_path) else 0,
-                'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S')
+                'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S'),
+                'is_video': is_video_file(item),
+                'is_audio': is_audio_file(item),
+                'mime_type': get_media_mime_type(item) if is_media_file(item) else None
             })
         
         items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
@@ -1312,7 +1505,9 @@ def serve_html(path=''):
             'isAdmin': session.get('user_id') == 1 if 'user_id' in session else False,
             'proxyEnabled': PROXY_ENABLED,
             'proxyAllowedTargets': PROXY_ALLOWED_TARGETS,
-            'websocketEndpoint': '/socket.io'
+            'websocketEndpoint': '/socket.io',
+            'videoSupported': True,
+            'audioSupported': True
         }
         
         script_tag = f'''
@@ -1389,6 +1584,12 @@ def health_check():
                 'key_file': SSL_KEY_FILE if SSL_ENABLED else None,
                 'is_https': is_https,
                 'message': 'HTTPS已启用' if is_https else ('SSL已配置' if SSL_ENABLED else 'HTTP（未启用SSL）')
+            },
+            'media': {
+                'video_formats': list(VIDEO_MIME_TYPES.keys()),
+                'audio_formats': list(AUDIO_MIME_TYPES.keys()),
+                'streaming_supported': True,
+                'range_requests_supported': True
             }
         })
     except Exception as e:
@@ -1404,7 +1605,12 @@ def health_check():
 
 @app.route('/api/filesystem-status', methods=['GET'])
 def get_filesystem_status():
-    return jsonify({'enabled': FILESYSTEM_ENABLED, 'root': HTML_ROOT_DIR if FILESYSTEM_ENABLED else None})
+    return jsonify({
+        'enabled': FILESYSTEM_ENABLED, 
+        'root': HTML_ROOT_DIR if FILESYSTEM_ENABLED else None,
+        'video_supported': True,
+        'video_formats': list(VIDEO_MIME_TYPES.keys())
+    })
 
 # ==================== 用户管理 API ====================
 @app.route('/api/register', methods=['POST'])
@@ -1693,12 +1899,15 @@ def get_files():
                 for item in os.listdir(user_folder):
                     item_path = os.path.join(user_folder, item)
                     if os.path.isfile(item_path):
+                        file_type = 'video' if is_video_file(item) else ('audio' if is_audio_file(item) else 'file')
                         files.append({
                             'name': item,
                             'size': os.path.getsize(item_path),
                             'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S'),
-                            'type': 'file',
-                            'full_path': f'/users/{session["username"]}/{item}'
+                            'type': file_type,
+                            'full_path': f'/users/{session["username"]}/{item}',
+                            'is_video': is_video_file(item),
+                            'is_audio': is_audio_file(item)
                         })
                     elif os.path.isdir(item_path) and item != '__pycache__':
                         files.append({
@@ -1717,11 +1926,14 @@ def get_files():
         for item in os.listdir(HTML_ROOT_DIR):
             item_path = os.path.join(HTML_ROOT_DIR, item)
             if os.path.isfile(item_path):
+                file_type = 'video' if is_video_file(item) else ('audio' if is_audio_file(item) else 'file')
                 files.append({
                     'name': item,
                     'size': os.path.getsize(item_path),
                     'modified': datetime.datetime.fromtimestamp(os.path.getmtime(item_path)).strftime('%Y-%m-%d %H:%M:%S'),
-                    'type': 'file'
+                    'type': file_type,
+                    'is_video': is_video_file(item),
+                    'is_audio': is_audio_file(item)
                 })
             elif os.path.isdir(item_path) and item != '__pycache__':
                 files.append({
@@ -1736,538 +1948,6 @@ def get_files():
     except Exception as e:
         logger.error(f"Get files error: {str(e)}")
         raise APIError(f'获取文件列表失败: {str(e)}', 500)
-
-#@app.route('/api/rename', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("30 per hour")
-#def rename_item():
-#    try:
-#        data = request.get_json()
-#        if not data:
-#            raise APIError('请提供JSON格式的数据', 400)
-#        
-#        old_path = data.get('old_path')
-#        new_name = data.get('new_name')
-#        item_type = data.get('type', 'file')
-#        
-#        if not old_path or not new_name:
-#            raise APIError('请提供原路径和新名称', 400)
-#        
-#        if item_type == 'dir':
-#            is_valid, error_message = is_valid_folder_name(new_name)
-#        else:
-#            is_valid, error_message = is_valid_filename(new_name)
-#        
-#        if not is_valid:
-#            raise APIError(error_message, 400)
-#        
-#        old_full_path = safe_path_join(HTML_ROOT_DIR, old_path)
-#        
-#        has_access, error_msg = check_file_access(old_full_path, 'rename')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(old_full_path):
-#            raise APIError(f'文件或目录不存在: {old_path}', 404)
-#        
-#        parent_dir = os.path.dirname(old_full_path)
-#        new_full_path = os.path.join(parent_dir, new_name)
-#        
-#        if os.path.exists(new_full_path):
-#            raise APIError(f'目标名称已存在: {new_name}', 400)
-#        
-#        os.rename(old_full_path, new_full_path)
-#        
-#        parent_path = os.path.dirname(old_path)
-#        if parent_path:
-#            new_relative_path = os.path.join(parent_path, new_name)
-#        else:
-#            new_relative_path = new_name
-#        
-#        file_size = os.path.getsize(new_full_path) if os.path.isfile(new_full_path) else 0
-#        modified = datetime.datetime.fromtimestamp(os.path.getmtime(new_full_path)).strftime('%Y-%m-%d %H:%M:%S')
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='rename',
-#            filename=os.path.basename(new_full_path),
-#            file_path=new_full_path,
-#            file_size=file_size if os.path.isfile(new_full_path) else None
-#        )
-#        
-#        return jsonify({
-#            'success': True,
-#            'old_path': old_path,
-#            'new_path': new_relative_path,
-#            'name': new_name,
-#            'type': item_type,
-#            'size': file_size,
-#            'modified': modified,
-#            'message': f'{item_type}重命名成功'
-#        })
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Rename error: {str(e)}")
-#        raise APIError(f'重命名失败: {str(e)}', 500)
-
-#@app.route('/api/folders', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("20 per hour")
-#def create_folder():
-#    try:
-#        data = request.get_json()
-#        if not data:
-#            raise APIError('请提供JSON格式的数据', 400)
-#        
-#        folder_name = data.get('name')
-#        parent_path = data.get('path', '')
-#        
-#        is_valid, error_message = is_valid_folder_name(folder_name)
-#        if not is_valid:
-#            raise APIError(error_message, 400)
-#        
-#        if parent_path:
-#            folder_path = safe_path_join(HTML_ROOT_DIR, parent_path)
-#            if not os.path.exists(folder_path):
-#                raise APIError(f'父路径不存在: {parent_path}', 404)
-#            if not os.path.isdir(folder_path):
-#                raise APIError(f'指定的路径不是目录: {parent_path}', 400)
-#            
-#            has_access, error_msg = check_file_access(folder_path, 'create')
-#            if not has_access:
-#                return jsonify({'error': error_msg}), 403
-#            
-#            target_path = os.path.join(folder_path, folder_name)
-#            full_relative_path = os.path.join(parent_path, folder_name)
-#        else:
-#            if session.get('user_id') != 1:
-#                raise APIError('普通用户不能在根目录创建文件夹', 403)
-#            target_path = os.path.join(HTML_ROOT_DIR, folder_name)
-#            full_relative_path = folder_name
-#        
-#        target_path = safe_path_join(HTML_ROOT_DIR, full_relative_path)
-#        
-#        if os.path.exists(target_path):
-#            raise APIError(f'文件夹 "{folder_name}" 已存在', 400)
-#        
-#        os.makedirs(target_path, exist_ok=False)
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='create_folder',
-#            filename=folder_name,
-#            file_path=target_path
-#        )
-#        
-#        return jsonify({
-#            'success': True,
-#            'name': folder_name,
-#            'path': full_relative_path,
-#            'message': '文件夹创建成功',
-#            'type': 'dir',
-#            'modified': datetime.datetime.fromtimestamp(os.path.getmtime(target_path)).strftime('%Y-%m-%d %H:%M:%S')
-#        }), 201
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Create folder error: {str(e)}")
-#        raise APIError(f'创建文件夹失败: {str(e)}', 500)
-
-#@app.route('/api/folders/<path:folder_path>', methods=['DELETE'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("30 per hour")
-#def delete_folder(folder_path):
-#    try:
-#        recursive = request.args.get('recursive', 'false').lower() == 'true'
-#        target_path = safe_path_join(HTML_ROOT_DIR, folder_path)
-#        
-#        has_access, error_msg = check_file_access(target_path, 'delete')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(target_path):
-#            raise APIError(f'文件夹不存在: {folder_path}', 404)
-#        
-#        if not os.path.isdir(target_path):
-#            raise APIError(f'指定的路径不是文件夹: {folder_path}', 400)
-#        
-#        if not recursive and len(os.listdir(target_path)) > 0:
-#            return jsonify({'error': '文件夹不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
-#        
-#        shutil.rmtree(target_path)
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='delete_folder',
-#            filename=os.path.basename(folder_path),
-#            file_path=target_path
-#        )
-#        
-#        return jsonify({'success': True, 'path': folder_path, 'message': '文件夹删除成功'})
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Delete folder error: {str(e)}")
-#        raise APIError(f'删除文件夹失败: {str(e)}', 500)
-
-#@app.route('/api/move', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("30 per hour")
-#def move_item():
-#    try:
-#        data = request.get_json()
-#        if not data:
-#            raise APIError('请提供JSON格式的数据', 400)
-#        
-#        source_paths = data.get('source_paths')
-#        target_path = data.get('target_path')
-#        
-#        if not source_paths or not target_path:
-#            raise APIError('请提供源路径和目标路径', 400)
-#        
-#        if isinstance(source_paths, str):
-#            source_paths = [source_paths]
-#        
-#        target_full_path = safe_path_join(HTML_ROOT_DIR, target_path)
-#        
-#        has_access, error_msg = check_file_access(target_full_path, 'write')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(target_full_path):
-#            raise APIError(f'目标目录不存在: {target_path}', 404)
-#        
-#        if not os.path.isdir(target_full_path):
-#            raise APIError(f'目标路径不是目录: {target_path}', 400)
-#        
-#        results = {'success': [], 'failed': []}
-#        
-#        for source_path in source_paths:
-#            try:
-#                source_full_path = safe_path_join(HTML_ROOT_DIR, source_path)
-#                
-#                has_access, error_msg = check_file_access(source_full_path, 'move')
-#                if not has_access:
-#                    results['failed'].append({'path': source_path, 'error': error_msg})
-#                    continue
-#                
-#                if not os.path.exists(source_full_path):
-#                    results['failed'].append({'path': source_path, 'error': '文件或目录不存在'})
-#                    continue
-#                
-#                source_name = os.path.basename(source_full_path)
-#                dest_full_path = os.path.join(target_full_path, source_name)
-#                
-#                if os.path.exists(dest_full_path):
-#                    results['failed'].append({'path': source_path, 'error': f'目标位置已存在同名项目: {source_name}'})
-#                    continue
-#                
-#                if dest_full_path.startswith(source_full_path) and dest_full_path != source_full_path:
-#                    results['failed'].append({'path': source_path, 'error': '不能将文件夹移动到其自身内部'})
-#                    continue
-#                
-#                file_size = None
-#                if os.path.isfile(source_full_path):
-#                    file_size = os.path.getsize(source_full_path)
-#                
-#                shutil.move(source_full_path, dest_full_path)
-#                
-#                new_relative_path = os.path.join(target_path, source_name)
-#                
-#                log_file_operation(
-#                    user_id=session['user_id'],
-#                    username=session['username'],
-#                    operation='move',
-#                    filename=source_name,
-#                    file_path=source_full_path,
-#                    file_size=file_size,
-#                    target_path=dest_full_path
-#                )
-#                
-#                item_type = 'dir' if os.path.isdir(dest_full_path) else 'file'
-#                
-#                results['success'].append({
-#                    'path': source_path,
-#                    'new_path': new_relative_path,
-#                    'name': source_name,
-#                    'type': item_type,
-#                    'size': file_size if file_size else 0,
-#                    'modified': datetime.datetime.fromtimestamp(os.path.getmtime(dest_full_path)).strftime('%Y-%m-%d %H:%M:%S')
-#                })
-#                
-#            except Exception as e:
-#                results['failed'].append({'path': source_path, 'error': str(e)})
-#        
-#        if len(results['success']) == len(source_paths):
-#            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目'})
-#        elif len(results['success']) == 0:
-#            raise APIError(f'移动失败: {results["failed"][0]["error"]}', 400)
-#        else:
-#            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'})
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Move error: {str(e)}")
-#        raise APIError(f'移动失败: {str(e)}', 500)
-
-#@app.route('/upload', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("20 per hour")
-#def upload_file():
-#    try:
-#        if 'file' not in request.files:
-#            raise APIError('请求中没有文件', 400)
-#        
-#        file = request.files['file']
-#        
-#        if file.filename == '':
-#            raise APIError('请选择要上传的文件', 400)
-#        
-#        filename = secure_filename(file.filename)
-#        if not filename:
-#            raise APIError('无效的文件名', 400)
-#        
-#        upload_path = request.form.get('path', '')
-#        
-#        if upload_path:
-#            upload_dir = safe_path_join(HTML_ROOT_DIR, upload_path)
-#            has_access, error_msg = check_file_access(upload_dir, 'write')
-#            if not has_access:
-#                return jsonify({'error': error_msg}), 403
-#            os.makedirs(upload_dir, exist_ok=True)
-#        else:
-#            if session.get('user_id') != 1:
-#                raise APIError('普通用户不能在根目录上传文件', 403)
-#            upload_dir = HTML_ROOT_DIR
-#        
-#        save_path = os.path.join(upload_dir, filename)
-#        
-#        if os.path.exists(save_path):
-#            name, ext = os.path.splitext(filename)
-#            timestamp = local_now().strftime('%Y%m%d_%H%M%S')
-#            new_filename = f"{name}_{timestamp}{ext}"
-#            save_path = os.path.join(upload_dir, new_filename)
-#        else:
-#            new_filename = filename
-#        
-#        file.seek(0, os.SEEK_END)
-#        file_size = file.tell()
-#        file.seek(0)
-#        
-#        if file_size > app.config['MAX_CONTENT_LENGTH']:
-#            raise APIError(f'文件大小超过限制（最大{app.config["MAX_CONTENT_LENGTH"]//1024//1024}MB）', 400)
-#        
-#        file.save(save_path)
-#        
-#        if upload_path:
-#            relative_path = os.path.join(upload_path, new_filename)
-#        else:
-#            relative_path = new_filename
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='upload',
-#            filename=new_filename,
-#            file_path=save_path,
-#            file_size=file_size
-#        )
-#        
-#        return jsonify({'success': True, 'filename': new_filename, 'path': relative_path, 'message': '文件上传成功'})
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"File upload error: {str(e)}")
-#        raise APIError(f'文件上传失败: {str(e)}', 500)
-
-#@app.route('/delete', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("30 per hour")
-#def delete_item():
-#    try:
-#        data = request.get_json()
-#        if not data:
-#            raise APIError('请提供JSON格式的数据', 400)
-#        
-#        name = data.get('name') or data.get('filename')
-#        recursive = data.get('recursive', False)
-#        
-#        if not name:
-#            raise APIError('请提供要删除的文件或目录名', 400)
-#        
-#        item_path = safe_path_join(HTML_ROOT_DIR, name)
-#        
-#        has_access, error_msg = check_file_access(item_path, 'delete')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(item_path):
-#            raise APIError(f'文件或目录不存在: {name}', 404)
-#        
-#        file_size = os.path.getsize(item_path) if os.path.isfile(item_path) else 0
-#        
-#        if os.path.isfile(item_path):
-#            os.remove(item_path)
-#            message = '文件删除成功'
-#            deleted_type = 'file'
-#            operation = 'delete'
-#        elif os.path.isdir(item_path):
-#            if not recursive and len(os.listdir(item_path)) > 0:
-#                return jsonify({'error': '目录不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
-#            
-#            shutil.rmtree(item_path)
-#            message = '目录删除成功'
-#            deleted_type = 'dir'
-#            operation = 'delete_dir'
-#            file_size = None
-#        else:
-#            raise APIError('未知的路径类型', 400)
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation=operation,
-#            filename=name,
-#            file_path=item_path,
-#            file_size=file_size
-#        )
-#        
-#        return jsonify({'success': True, 'name': name, 'type': deleted_type, 'message': message})
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Delete error: {str(e)}")
-#        raise APIError(f'删除失败: {str(e)}', 500)
-
-#@app.route('/delete-multiple', methods=['POST'])
-#@login_required
-#@filesystem_required
-#@limiter.limit("10 per hour")
-#def delete_multiple():
-#    try:
-#        data = request.get_json()
-#        if not data or 'items' not in data:
-#            raise APIError('请提供要删除的项目列表', 400)
-#        
-#        items = data['items']
-#        recursive = data.get('recursive', False)
-#        
-#        if len(items) > 50:
-#            raise APIError('一次最多删除50个项目', 400)
-#        
-#        results = {'success': [], 'failed': []}
-#        
-#        for item in items:
-#            try:
-#                name = item if isinstance(item, str) else item.get('name')
-#                if not name:
-#                    results['failed'].append({'name': 'unknown', 'error': '无效的项目名称'})
-#                    continue
-#                
-#                item_path = safe_path_join(HTML_ROOT_DIR, name)
-#                
-#                has_access, error_msg = check_file_access(item_path, 'delete')
-#                if not has_access:
-#                    results['failed'].append({'name': name, 'error': error_msg})
-#                    continue
-#                
-#                if not os.path.exists(item_path):
-#                    results['failed'].append({'name': name, 'error': '文件或目录不存在'})
-#                    continue
-#                
-#                if os.path.isfile(item_path):
-#                    file_size = os.path.getsize(item_path)
-#                    os.remove(item_path)
-#                    results['success'].append({'name': name, 'type': 'file'})
-#                    log_file_operation(
-#                        user_id=session['user_id'],
-#                        username=session['username'],
-#                        operation='batch_delete',
-#                        filename=name,
-#                        file_path=item_path,
-#                        file_size=file_size
-#                    )
-#                elif os.path.isdir(item_path):
-#                    if not recursive and len(os.listdir(item_path)) > 0:
-#                        results['failed'].append({'name': name, 'error': '目录不为空'})
-#                    else:
-#                        shutil.rmtree(item_path)
-#                        results['success'].append({'name': name, 'type': 'dir'})
-#                        log_file_operation(
-#                            user_id=session['user_id'],
-#                            username=session['username'],
-#                            operation='batch_delete_dir',
-#                            filename=name,
-#                            file_path=item_path
-#                        )
-#                else:
-#                    results['failed'].append({'name': name, 'error': '未知的文件类型'})
-#                    
-#            except Exception as e:
-#                results['failed'].append({'name': name if 'name' in locals() else 'unknown', 'error': str(e)})
-#        
-#        return jsonify({
-#            'success': True,
-#            'results': results,
-#            'message': f'成功删除 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'
-#        })
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Batch delete error: {str(e)}")
-#        raise APIError(f'批量删除失败: {str(e)}', 500)
-#
-#@app.route('/download/<path:filename>', methods=['GET'])
-#@login_required
-#@filesystem_required
-#def download_file(filename):
-#    try:
-#        file_path = safe_path_join(HTML_ROOT_DIR, filename)
-#        
-#        has_access, error_msg = check_file_access(file_path, 'download')
-#        if not has_access:
-#            return jsonify({'error': error_msg}), 403
-#        
-#        if not os.path.exists(file_path):
-#            raise APIError('文件不存在', 404)
-#        
-#        if not os.path.isfile(file_path):
-#            raise APIError('不是有效的文件', 400)
-#        
-#        file_size = os.path.getsize(file_path)
-#        
-#        log_file_operation(
-#            user_id=session['user_id'],
-#            username=session['username'],
-#            operation='download',
-#            filename=os.path.basename(file_path),
-#            file_path=file_path,
-#            file_size=file_size
-#        )
-#        
-#        return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
-#        
-#    except APIError as e:
-#        raise e
-#    except Exception as e:
-#        logger.error(f"Download error: {str(e)}")
-#        raise APIError(f'下载失败: {str(e)}', 500)
 
 # ==================== 审计日志 API ====================
 @app.route('/api/audit/file-operations', methods=['GET'])
@@ -2360,6 +2040,8 @@ def get_system_stats():
             total_size = 0
             file_count = 0
             dir_count = 0
+            video_count = 0
+            audio_count = 0
             
             for root, dirs, files in os.walk(HTML_ROOT_DIR):
                 dir_count += len(dirs)
@@ -2370,12 +2052,18 @@ def get_system_stats():
                         total_size += os.path.getsize(file_path)
                     except:
                         pass
+                    if is_video_file(file):
+                        video_count += 1
+                    elif is_audio_file(file):
+                        audio_count += 1
             
             storage_stats = {
                 'total_size': total_size,
                 'total_size_mb': round(total_size / (1024 * 1024), 2),
                 'file_count': file_count,
-                'directory_count': dir_count
+                'directory_count': dir_count,
+                'video_count': video_count,
+                'audio_count': audio_count
             }
         
         return jsonify({
@@ -2407,12 +2095,39 @@ def get_system_stats():
                     'enabled': PROXY_ENABLED, 
                     'allowed_targets': PROXY_ALLOWED_TARGETS, 
                     'websocket_supported': True
+                },
+                'media': {
+                    'video_formats_supported': list(VIDEO_MIME_TYPES.keys()),
+                    'audio_formats_supported': list(AUDIO_MIME_TYPES.keys()),
+                    'streaming_enabled': True
                 }
             }
         })
     except Exception as e:
         logger.error(f"Get stats error: {str(e)}")
         raise APIError(f'获取系统统计信息失败', 500)
+
+# ==================== 数据库初始化 ====================
+def init_database():
+    with app.app_context():
+        db.create_all()
+        if User.query.first() is None:
+            default_user = User(username='admin')
+            default_user.set_password('Admin@123456')
+            db.session.add(default_user)
+            db.session.commit()
+            logger.info("Database initialized with default admin user")
+            print("\n" + "="*50)
+            print("✅ 数据库初始化完成！")
+            print("="*50)
+            print("默认管理员账户：")
+            print("  📝 用户名: admin")
+            print("  🔑 密码: Admin@123456")
+            print("="*50)
+        else:
+            print("\n" + "="*50)
+            print("ℹ️  数据库已存在用户，跳过初始化")
+            print("="*50 + "\n")
 
 # ==================== 主程序入口 ====================
 if __name__ == '__main__':
@@ -2444,6 +2159,15 @@ if __name__ == '__main__':
         print(f"允许代理的目标: {', '.join(PROXY_ALLOWED_TARGETS)}")
         print(f"WebSocket代理: ✅ 支持 (通过 Socket.IO)")
     print("="*60)
+    
+    print("\n🎬 视频播放功能:")
+    print("- ✅ 支持流式播放 (HTTP Range请求)")
+    print("- ✅ 支持视频拖动/快进")
+    print("- ✅ 支持的视频格式: " + ", ".join(VIDEO_MIME_TYPES.keys()))
+    print("- ✅ 支持的音频格式: " + ", ".join(AUDIO_MIME_TYPES.keys()))
+    print("- 📹 视频播放路径: /video/{文件路径}")
+    print("- 📊 视频信息API: /api/video/info/{文件路径}")
+    print("- 📋 视频列表API: /api/videos")
     
     print("\n🔒 权限控制:")
     print("- 🌐 任何人都可以访问根目录（无需登录）")
