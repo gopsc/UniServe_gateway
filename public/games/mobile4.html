@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=yes">
+  <title>节奏光剑 · 反应游戏</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body {
+      background: linear-gradient(180deg, #0a0a1a 0%, #1a1a3a 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 10px;
+      margin: 0;
+    }
+    .game-container {
+      width: 100%;
+      max-width: 400px;
+      background: radial-gradient(circle at 50% 40%, #2a2a5a, #0d0d2b);
+      border-radius: 48px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.8), inset 0 0 30px rgba(100,100,255,0.2);
+      padding: 16px 12px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #4a4a8a;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 32px;
+      background: radial-gradient(ellipse at 50% 0%, #1e1e4a 0%, #08081a 80%);
+      box-shadow: inset 0 -10px 30px rgba(0,0,0,0.9), 0 12px 30px black;
+      touch-action: none;
+    }
+    .info-panel {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding: 0 10px;
+      color: #d0d0ff;
+      font-weight: bold;
+      text-shadow: 0 2px 10px #000066;
+      font-size: 1.3rem;
+    }
+    .score-board {
+      background: rgba(10, 10, 40, 0.8);
+      backdrop-filter: blur(15px);
+      border-radius: 50px;
+      padding: 8px 22px;
+      letter-spacing: 1px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+      border: 1px solid #6a6aff;
+      color: #ccccff;
+    }
+    .restart-btn {
+      background: #7b4aff;
+      border: none;
+      color: white;
+      font-weight: bold;
+      font-size: 1.2rem;
+      padding: 10px 25px;
+      border-radius: 40px;
+      background: linear-gradient(180deg, #9f7aff 0%, #5a2ae0 100%);
+      box-shadow: 0 8px 0 #361a8c, 0 12px 24px rgba(0,0,0,0.6);
+      transition: all 0.08s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      border: 1px solid #b89fff;
+      touch-action: manipulation;
+    }
+    .restart-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #361a8c, 0 8px 16px black;
+      background: linear-gradient(180deg, #8a65f0 0%, #421db0 100%);
+    }
+    .hint {
+      color: #aaaadd;
+      font-size: 0.8rem;
+      margin-top: 6px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <canvas id="gameCanvas" width="360" height="600" aria-label="节奏光剑游戏画面"></canvas>
+    <div class="info-panel">
+      <div class="score-board" id="scoreDisplay">⚡ 0</div>
+      <button class="restart-btn" id="restartButton">🔮 重启</button>
+    </div>
+    <div class="hint">👇 点击下方轨道区域 | 击中光点</div>
+  </div>
+
+  <script>
+    (function() {
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const scoreSpan = document.getElementById('scoreDisplay');
+
+      const CW = 360;
+      const CH = 600;
+      canvas.width = CW;
+      canvas.height = CH;
+
+      // ----- 轨道设置 -----
+      const NUM_TRACKS = 4;
+      const TRACK_WIDTH = CW / NUM_TRACKS;
+      const HIT_ZONE_Y = CH - 75;       // 判定线Y坐标
+      const HIT_TOLERANCE = 42;         // 判定范围
+      
+      // 游戏状态
+      let gameActive = true;
+      let score = 0;
+      let combo = 0;
+      let maxCombo = 0;
+      
+      // 音符数组
+      let notes = [];
+      
+      // 粒子效果
+      let particles = [];
+      
+      // 节拍控制
+      const NOTE_SPEED = 5.2;
+      const SPAWN_INTERVAL = 28;        // 帧间隔
+      let frameCounter = 0;
+      
+      // 轨道闪烁效果
+      let trackFlash = Array(NUM_TRACKS).fill(0);
+
+      // ----- 辅助函数 -----
+      function randomTrack() {
+        return Math.floor(Math.random() * NUM_TRACKS);
+      }
+
+      function spawnNote() {
+        const track = randomTrack();
+        const x = track * TRACK_WIDTH + TRACK_WIDTH/2;
+        notes.push({
+          x: x,
+          y: -30,
+          track: track,
+          radius: 14,
+          active: true,
+        });
+      }
+
+      function restartGame() {
+        gameActive = true;
+        score = 0;
+        combo = 0;
+        maxCombo = 0;
+        notes = [];
+        particles = [];
+        frameCounter = 0;
+        trackFlash = Array(NUM_TRACKS).fill(0);
+        updateScoreDisplay();
+      }
+
+      function endGame() {
+        if (!gameActive) return;
+        gameActive = false;
+        if (window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate(50);
+        }
+      }
+
+      function updateScoreDisplay() {
+        scoreSpan.textContent = `⚡ ${score}`;
+      }
+
+      // 添加粒子
+      function spawnParticles(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 2 + Math.random() * 5;
+          particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1.0,
+            decay: 0.02 + Math.random() * 0.04,
+            color: color,
+            size: 2 + Math.random() * 4,
+          });
+        }
+      }
+
+      // 处理点击轨道
+      function hitTrack(trackIndex) {
+        if (!gameActive) return;
+        
+        let hitSuccess = false;
+        let bestNoteIndex = -1;
+        let bestDistance = HIT_TOLERANCE;
+        
+        // 寻找最近的音符
+        for (let i = notes.length - 1; i >= 0; i--) {
+          const note = notes[i];
+          if (!note.active || note.track !== trackIndex) continue;
+          const distToZone = Math.abs(note.y - HIT_ZONE_Y);
+          if (distToZone < bestDistance) {
+            bestDistance = distToZone;
+            bestNoteIndex = i;
+          }
+        }
+        
+        if (bestNoteIndex !== -1) {
+          const note = notes[bestNoteIndex];
+          notes.splice(bestNoteIndex, 1);
+          combo++;
+          if (combo > maxCombo) maxCombo = combo;
+          
+          // 根据准确度加分
+          const accuracy = 1 - (bestDistance / HIT_TOLERANCE);
+          const points = Math.floor(10 + accuracy * 30);
+          score += points;
+          
+          spawnParticles(note.x, note.y, '#ffff88');
+          trackFlash[trackIndex] = 1.0;
+          hitSuccess = true;
+        }
+        
+        if (!hitSuccess) {
+          // 失误：重置连击
+          combo = 0;
+          trackFlash[trackIndex] = 0.4;
+          spawnParticles(
+            trackIndex * TRACK_WIDTH + TRACK_WIDTH/2, 
+            HIT_ZONE_Y, 
+            '#ff5555'
+          );
+        }
+        
+        updateScoreDisplay();
+      }
+
+      // ----- 更新逻辑 -----
+      function update() {
+        if (!gameActive) return;
+        
+        // 更新音符位置
+        for (let i = notes.length - 1; i >= 0; i--) {
+          const note = notes[i];
+          note.y += NOTE_SPEED;
+          
+          // 超出屏幕底部移除，并断连击
+          if (note.y > CH + 50) {
+            notes.splice(i, 1);
+            combo = 0;
+            updateScoreDisplay();
+          }
+        }
+        
+        // 更新粒子
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= p.decay;
+          if (p.life <= 0) particles.splice(i, 1);
+        }
+        
+        // 更新轨道闪烁
+        for (let t = 0; t < NUM_TRACKS; t++) {
+          if (trackFlash[t] > 0) trackFlash[t] -= 0.05;
+        }
+        
+        // 生成音符
+        if (gameActive) {
+          frameCounter++;
+          if (frameCounter >= SPAWN_INTERVAL) {
+            spawnNote();
+            frameCounter = 0;
+            const variation = Math.floor(Math.random() * 8) - 2;
+            frameCounter = -variation;
+          }
+        }
+        
+        // 检查游戏结束条件 (可选：漏掉太多音符？这里不使用，纯无限)
+      }
+
+      // ----- 绘制图形 -----
+      function draw() {
+        ctx.clearRect(0, 0, CW, CH);
+        
+        // 绘制轨道线
+        for (let t = 0; t < NUM_TRACKS; t++) {
+          const trackX = t * TRACK_WIDTH;
+          ctx.fillStyle = trackFlash[t] > 0.1 
+            ? `rgba(180, 180, 255, ${0.15 + trackFlash[t]*0.4})` 
+            : 'rgba(40, 40, 80, 0.4)';
+          ctx.fillRect(trackX + 4, 0, TRACK_WIDTH - 8, CH);
+          
+          ctx.strokeStyle = '#3a3a7a';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([12, 20]);
+          ctx.beginPath();
+          ctx.moveTo(trackX + TRACK_WIDTH/2, 0);
+          ctx.lineTo(trackX + TRACK_WIDTH/2, CH);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        
+        // 判定线
+        ctx.strokeStyle = '#ffdd44';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.moveTo(0, HIT_ZONE_Y);
+        ctx.lineTo(CW, HIT_ZONE_Y);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        // 绘制音符
+        for (let note of notes) {
+          if (!note.active) continue;
+          ctx.save();
+          ctx.shadowColor = '#ffffff';
+          ctx.shadowBlur = 16;
+          
+          const gradient = ctx.createRadialGradient(note.x-2, note.y-2, 2, note.x, note.y, note.radius);
+          gradient.addColorStop(0, '#ffffff');
+          gradient.addColorStop(0.5, '#aaccff');
+          gradient.addColorStop(1, '#3355aa');
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(note.x, note.y, note.radius, 0, Math.PI*2);
+          ctx.fill();
+          
+          // 内核高光
+          ctx.fillStyle = '#ffffffdd';
+          ctx.beginPath();
+          ctx.arc(note.x-2, note.y-3, note.radius*0.4, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
+        
+        // 绘制粒子
+        for (let p of particles) {
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        
+        // 连击显示
+        if (combo > 2) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 22px "Segoe UI"';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#ffaa00';
+          ctx.shadowBlur = 20;
+          ctx.fillText(`${combo} COMBO`, CW/2, 65);
+          ctx.shadowBlur = 0;
+        }
+        
+        // 游戏结束
+        if (!gameActive) {
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = '#05051a';
+          ctx.fillRect(0, 0, CW, CH);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = '#d0d0ff';
+          ctx.font = 'bold 28px "Segoe UI"';
+          ctx.textAlign = 'center';
+          ctx.fillText('🌙 结束', CW/2, CH/2-25);
+          ctx.font = '16px system-ui';
+          ctx.fillText(`最高连击: ${maxCombo}`, CW/2, CH/2+30);
+        }
+      }
+
+      // ----- 游戏循环 -----
+      function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+      }
+
+      // ----- 事件处理 -----
+      function handleCanvasTouch(e) {
+        e.preventDefault();
+        if (!gameActive) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = CW / rect.width;
+        
+        // 支持多点触摸处理多个轨道
+        if (e.touches) {
+          for (let i = 0; i < e.touches.length; i++) {
+            const touch = e.touches[i];
+            const canvasX = (touch.clientX - rect.left) * scaleX;
+            const trackIndex = Math.floor(canvasX / TRACK_WIDTH);
+            if (trackIndex >= 0 && trackIndex < NUM_TRACKS) {
+              hitTrack(trackIndex);
+            }
+          }
+        }
+      }
+
+      function handleMouseDown(e) {
+        e.preventDefault();
+        if (!gameActive) return;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = CW / rect.width;
+        const canvasX = (e.clientX - rect.left) * scaleX;
+        const trackIndex = Math.floor(canvasX / TRACK_WIDTH);
+        if (trackIndex >= 0 && trackIndex < NUM_TRACKS) {
+          hitTrack(trackIndex);
+        }
+      }
+
+      function bindEvents() {
+        canvas.addEventListener('touchstart', handleCanvasTouch, { passive: false });
+        canvas.addEventListener('mousedown', handleMouseDown);
+        
+        document.getElementById('restartButton').addEventListener('click', restartGame);
+        document.getElementById('restartButton').addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          restartGame();
+        });
+      }
+
+      bindEvents();
+      restartGame();
+      gameLoop();
+    })();
+  </script>
+</body>
+</html>

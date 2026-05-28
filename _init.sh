@@ -1,4 +1,4 @@
 #!/bin/bash
 cd "$(dirname "$0")" || exit
 source ./.env/bin/activate
-exec python upd.py --init-db
+exec python gateway.py --init-db
