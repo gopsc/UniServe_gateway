@@ -1036,128 +1036,128 @@ def get_file_list():
         return jsonify({'error': f'获取文件列表失败: {str(e)}'}), 500
 
 # ==================== 文件读取和保存视图 ====================
-@app.route('/read-file/<path:file_path>', methods=['GET'])
-@login_required
-@filesystem_required
-def read_file(file_path):
-    """读取文件内容"""
-    try:
-        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
-        
-        has_access, error_msg = check_file_access(full_path, 'read')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(full_path):
-            raise APIError(f'文件不存在: {file_path}', 404)
-        
-        if not os.path.isfile(full_path):
-            raise APIError(f'路径不是文件: {file_path}', 400)
-        
-        file_size = os.path.getsize(full_path)
-        if file_size > 10 * 1024 * 1024:
-            raise APIError('文件过大，无法编辑', 400)
-        
-        content = None
-        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1', 'cp1252']
-        
-        for encoding in encodings:
-            try:
-                with open(full_path, 'r', encoding=encoding) as f:
-                    content = f.read()
-                break
-            except UnicodeDecodeError:
-                continue
-            except Exception:
-                continue
-        
-        if content is None:
-            with open(full_path, 'rb') as f:
-                binary_data = f.read(1024)
-                content = f"二进制文件，无法以文本方式显示。前 {len(binary_data)} 字节的十六进制表示:\n"
-                content += ' '.join(f'{b:02x}' for b in binary_data[:100])
-                if len(binary_data) > 100:
-                    content += ' ...'
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='read_file',
-            filename=os.path.basename(full_path),
-            file_path=full_path,
-            file_size=file_size
-        )
-        
-        return jsonify({
-            'success': True,
-            'content': content,
-            'path': file_path,
-            'size': file_size,
-            'is_binary': content.startswith('二进制文件')
-        })
-        
-    except APIError as e:
-        return jsonify({'error': e.message}), e.status_code
-    except Exception as e:
-        logger.error(f"Read file error: {str(e)}")
-        return jsonify({'error': f'读取文件失败: {str(e)}'}), 500
+#@app.route('/read-file/<path:file_path>', methods=['GET'])
+#@login_required
+#@filesystem_required
+#def read_file(file_path):
+#    """读取文件内容"""
+#    try:
+#        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
+#        
+#        has_access, error_msg = check_file_access(full_path, 'read')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(full_path):
+#            raise APIError(f'文件不存在: {file_path}', 404)
+#        
+#        if not os.path.isfile(full_path):
+#            raise APIError(f'路径不是文件: {file_path}', 400)
+#        
+#        file_size = os.path.getsize(full_path)
+#        if file_size > 10 * 1024 * 1024:
+#            raise APIError('文件过大，无法编辑', 400)
+#        
+#        content = None
+#        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1', 'cp1252']
+#        
+#        for encoding in encodings:
+#            try:
+#                with open(full_path, 'r', encoding=encoding) as f:
+#                    content = f.read()
+#                break
+#            except UnicodeDecodeError:
+#                continue
+#            except Exception:
+#                continue
+#        
+#        if content is None:
+#            with open(full_path, 'rb') as f:
+#                binary_data = f.read(1024)
+#                content = f"二进制文件，无法以文本方式显示。前 {len(binary_data)} 字节的十六进制表示:\n"
+#                content += ' '.join(f'{b:02x}' for b in binary_data[:100])
+#                if len(binary_data) > 100:
+#                    content += ' ...'
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='read_file',
+#            filename=os.path.basename(full_path),
+#            file_path=full_path,
+#            file_size=file_size
+#        )
+#        
+#        return jsonify({
+#            'success': True,
+#            'content': content,
+#            'path': file_path,
+#            'size': file_size,
+#            'is_binary': content.startswith('二进制文件')
+#        })
+#        
+#    except APIError as e:
+#        return jsonify({'error': e.message}), e.status_code
+#    except Exception as e:
+#        logger.error(f"Read file error: {str(e)}")
+#        return jsonify({'error': f'读取文件失败: {str(e)}'}), 500
 
-@app.route('/save-file', methods=['POST'])
-@login_required
-@filesystem_required
-def save_file():
-    """保存文件内容"""
-    try:
-        data = request.get_json()
-        if not data:
-            raise APIError('请提供JSON格式的数据', 400)
-        
-        file_path = data.get('path')
-        content = data.get('content', '')
-        
-        if not file_path:
-            raise APIError('请提供文件路径', 400)
-        
-        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
-        
-        has_access, error_msg = check_file_access(full_path, 'write')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        file_dir = os.path.dirname(full_path)
-        if file_dir:
-            os.makedirs(file_dir, exist_ok=True)
-        
-        try:
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-        except UnicodeEncodeError:
-            with open(full_path, 'w', encoding='utf-8-sig') as f:
-                f.write(content)
-        
-        file_size = len(content.encode('utf-8', errors='ignore'))
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='save_file',
-            filename=os.path.basename(full_path),
-            file_path=full_path,
-            file_size=file_size
-        )
-        
-        return jsonify({
-            'success': True,
-            'path': file_path,
-            'size': file_size,
-            'message': '文件保存成功'
-        })
-        
-    except APIError as e:
-        return jsonify({'error': e.message}), e.status_code
-    except Exception as e:
-        logger.error(f"Save file error: {str(e)}")
-        return jsonify({'error': f'保存文件失败: {str(e)}'}), 500
+#@app.route('/save-file', methods=['POST'])
+#@login_required
+#@filesystem_required
+#def save_file():
+#    """保存文件内容"""
+#    try:
+#        data = request.get_json()
+#        if not data:
+#            raise APIError('请提供JSON格式的数据', 400)
+#        
+#        file_path = data.get('path')
+#        content = data.get('content', '')
+#        
+#        if not file_path:
+#            raise APIError('请提供文件路径', 400)
+#        
+#        full_path = safe_path_join(HTML_ROOT_DIR, file_path)
+#        
+#        has_access, error_msg = check_file_access(full_path, 'write')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        file_dir = os.path.dirname(full_path)
+#        if file_dir:
+#            os.makedirs(file_dir, exist_ok=True)
+#        
+#        try:
+#            with open(full_path, 'w', encoding='utf-8') as f:
+#                f.write(content)
+#        except UnicodeEncodeError:
+#            with open(full_path, 'w', encoding='utf-8-sig') as f:
+#                f.write(content)
+#        
+#        file_size = len(content.encode('utf-8', errors='ignore'))
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='save_file',
+#            filename=os.path.basename(full_path),
+#            file_path=full_path,
+#            file_size=file_size
+#        )
+#        
+#        return jsonify({
+#            'success': True,
+#            'path': file_path,
+#            'size': file_size,
+#            'message': '文件保存成功'
+#        })
+#        
+#    except APIError as e:
+#        return jsonify({'error': e.message}), e.status_code
+#    except Exception as e:
+#        logger.error(f"Save file error: {str(e)}")
+#        return jsonify({'error': f'保存文件失败: {str(e)}'}), 500
 
 # ==================== 数据库初始化 ====================
 def init_database():
@@ -1737,537 +1737,537 @@ def get_files():
         logger.error(f"Get files error: {str(e)}")
         raise APIError(f'获取文件列表失败: {str(e)}', 500)
 
-@app.route('/api/rename', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("30 per hour")
-def rename_item():
-    try:
-        data = request.get_json()
-        if not data:
-            raise APIError('请提供JSON格式的数据', 400)
-        
-        old_path = data.get('old_path')
-        new_name = data.get('new_name')
-        item_type = data.get('type', 'file')
-        
-        if not old_path or not new_name:
-            raise APIError('请提供原路径和新名称', 400)
-        
-        if item_type == 'dir':
-            is_valid, error_message = is_valid_folder_name(new_name)
-        else:
-            is_valid, error_message = is_valid_filename(new_name)
-        
-        if not is_valid:
-            raise APIError(error_message, 400)
-        
-        old_full_path = safe_path_join(HTML_ROOT_DIR, old_path)
-        
-        has_access, error_msg = check_file_access(old_full_path, 'rename')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(old_full_path):
-            raise APIError(f'文件或目录不存在: {old_path}', 404)
-        
-        parent_dir = os.path.dirname(old_full_path)
-        new_full_path = os.path.join(parent_dir, new_name)
-        
-        if os.path.exists(new_full_path):
-            raise APIError(f'目标名称已存在: {new_name}', 400)
-        
-        os.rename(old_full_path, new_full_path)
-        
-        parent_path = os.path.dirname(old_path)
-        if parent_path:
-            new_relative_path = os.path.join(parent_path, new_name)
-        else:
-            new_relative_path = new_name
-        
-        file_size = os.path.getsize(new_full_path) if os.path.isfile(new_full_path) else 0
-        modified = datetime.datetime.fromtimestamp(os.path.getmtime(new_full_path)).strftime('%Y-%m-%d %H:%M:%S')
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='rename',
-            filename=os.path.basename(new_full_path),
-            file_path=new_full_path,
-            file_size=file_size if os.path.isfile(new_full_path) else None
-        )
-        
-        return jsonify({
-            'success': True,
-            'old_path': old_path,
-            'new_path': new_relative_path,
-            'name': new_name,
-            'type': item_type,
-            'size': file_size,
-            'modified': modified,
-            'message': f'{item_type}重命名成功'
-        })
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Rename error: {str(e)}")
-        raise APIError(f'重命名失败: {str(e)}', 500)
+#@app.route('/api/rename', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("30 per hour")
+#def rename_item():
+#    try:
+#        data = request.get_json()
+#        if not data:
+#            raise APIError('请提供JSON格式的数据', 400)
+#        
+#        old_path = data.get('old_path')
+#        new_name = data.get('new_name')
+#        item_type = data.get('type', 'file')
+#        
+#        if not old_path or not new_name:
+#            raise APIError('请提供原路径和新名称', 400)
+#        
+#        if item_type == 'dir':
+#            is_valid, error_message = is_valid_folder_name(new_name)
+#        else:
+#            is_valid, error_message = is_valid_filename(new_name)
+#        
+#        if not is_valid:
+#            raise APIError(error_message, 400)
+#        
+#        old_full_path = safe_path_join(HTML_ROOT_DIR, old_path)
+#        
+#        has_access, error_msg = check_file_access(old_full_path, 'rename')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(old_full_path):
+#            raise APIError(f'文件或目录不存在: {old_path}', 404)
+#        
+#        parent_dir = os.path.dirname(old_full_path)
+#        new_full_path = os.path.join(parent_dir, new_name)
+#        
+#        if os.path.exists(new_full_path):
+#            raise APIError(f'目标名称已存在: {new_name}', 400)
+#        
+#        os.rename(old_full_path, new_full_path)
+#        
+#        parent_path = os.path.dirname(old_path)
+#        if parent_path:
+#            new_relative_path = os.path.join(parent_path, new_name)
+#        else:
+#            new_relative_path = new_name
+#        
+#        file_size = os.path.getsize(new_full_path) if os.path.isfile(new_full_path) else 0
+#        modified = datetime.datetime.fromtimestamp(os.path.getmtime(new_full_path)).strftime('%Y-%m-%d %H:%M:%S')
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='rename',
+#            filename=os.path.basename(new_full_path),
+#            file_path=new_full_path,
+#            file_size=file_size if os.path.isfile(new_full_path) else None
+#        )
+#        
+#        return jsonify({
+#            'success': True,
+#            'old_path': old_path,
+#            'new_path': new_relative_path,
+#            'name': new_name,
+#            'type': item_type,
+#            'size': file_size,
+#            'modified': modified,
+#            'message': f'{item_type}重命名成功'
+#        })
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Rename error: {str(e)}")
+#        raise APIError(f'重命名失败: {str(e)}', 500)
 
-@app.route('/api/folders', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("20 per hour")
-def create_folder():
-    try:
-        data = request.get_json()
-        if not data:
-            raise APIError('请提供JSON格式的数据', 400)
-        
-        folder_name = data.get('name')
-        parent_path = data.get('path', '')
-        
-        is_valid, error_message = is_valid_folder_name(folder_name)
-        if not is_valid:
-            raise APIError(error_message, 400)
-        
-        if parent_path:
-            folder_path = safe_path_join(HTML_ROOT_DIR, parent_path)
-            if not os.path.exists(folder_path):
-                raise APIError(f'父路径不存在: {parent_path}', 404)
-            if not os.path.isdir(folder_path):
-                raise APIError(f'指定的路径不是目录: {parent_path}', 400)
-            
-            has_access, error_msg = check_file_access(folder_path, 'create')
-            if not has_access:
-                return jsonify({'error': error_msg}), 403
-            
-            target_path = os.path.join(folder_path, folder_name)
-            full_relative_path = os.path.join(parent_path, folder_name)
-        else:
-            if session.get('user_id') != 1:
-                raise APIError('普通用户不能在根目录创建文件夹', 403)
-            target_path = os.path.join(HTML_ROOT_DIR, folder_name)
-            full_relative_path = folder_name
-        
-        target_path = safe_path_join(HTML_ROOT_DIR, full_relative_path)
-        
-        if os.path.exists(target_path):
-            raise APIError(f'文件夹 "{folder_name}" 已存在', 400)
-        
-        os.makedirs(target_path, exist_ok=False)
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='create_folder',
-            filename=folder_name,
-            file_path=target_path
-        )
-        
-        return jsonify({
-            'success': True,
-            'name': folder_name,
-            'path': full_relative_path,
-            'message': '文件夹创建成功',
-            'type': 'dir',
-            'modified': datetime.datetime.fromtimestamp(os.path.getmtime(target_path)).strftime('%Y-%m-%d %H:%M:%S')
-        }), 201
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Create folder error: {str(e)}")
-        raise APIError(f'创建文件夹失败: {str(e)}', 500)
+#@app.route('/api/folders', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("20 per hour")
+#def create_folder():
+#    try:
+#        data = request.get_json()
+#        if not data:
+#            raise APIError('请提供JSON格式的数据', 400)
+#        
+#        folder_name = data.get('name')
+#        parent_path = data.get('path', '')
+#        
+#        is_valid, error_message = is_valid_folder_name(folder_name)
+#        if not is_valid:
+#            raise APIError(error_message, 400)
+#        
+#        if parent_path:
+#            folder_path = safe_path_join(HTML_ROOT_DIR, parent_path)
+#            if not os.path.exists(folder_path):
+#                raise APIError(f'父路径不存在: {parent_path}', 404)
+#            if not os.path.isdir(folder_path):
+#                raise APIError(f'指定的路径不是目录: {parent_path}', 400)
+#            
+#            has_access, error_msg = check_file_access(folder_path, 'create')
+#            if not has_access:
+#                return jsonify({'error': error_msg}), 403
+#            
+#            target_path = os.path.join(folder_path, folder_name)
+#            full_relative_path = os.path.join(parent_path, folder_name)
+#        else:
+#            if session.get('user_id') != 1:
+#                raise APIError('普通用户不能在根目录创建文件夹', 403)
+#            target_path = os.path.join(HTML_ROOT_DIR, folder_name)
+#            full_relative_path = folder_name
+#        
+#        target_path = safe_path_join(HTML_ROOT_DIR, full_relative_path)
+#        
+#        if os.path.exists(target_path):
+#            raise APIError(f'文件夹 "{folder_name}" 已存在', 400)
+#        
+#        os.makedirs(target_path, exist_ok=False)
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='create_folder',
+#            filename=folder_name,
+#            file_path=target_path
+#        )
+#        
+#        return jsonify({
+#            'success': True,
+#            'name': folder_name,
+#            'path': full_relative_path,
+#            'message': '文件夹创建成功',
+#            'type': 'dir',
+#            'modified': datetime.datetime.fromtimestamp(os.path.getmtime(target_path)).strftime('%Y-%m-%d %H:%M:%S')
+#        }), 201
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Create folder error: {str(e)}")
+#        raise APIError(f'创建文件夹失败: {str(e)}', 500)
 
-@app.route('/api/folders/<path:folder_path>', methods=['DELETE'])
-@login_required
-@filesystem_required
-@limiter.limit("30 per hour")
-def delete_folder(folder_path):
-    try:
-        recursive = request.args.get('recursive', 'false').lower() == 'true'
-        target_path = safe_path_join(HTML_ROOT_DIR, folder_path)
-        
-        has_access, error_msg = check_file_access(target_path, 'delete')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(target_path):
-            raise APIError(f'文件夹不存在: {folder_path}', 404)
-        
-        if not os.path.isdir(target_path):
-            raise APIError(f'指定的路径不是文件夹: {folder_path}', 400)
-        
-        if not recursive and len(os.listdir(target_path)) > 0:
-            return jsonify({'error': '文件夹不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
-        
-        shutil.rmtree(target_path)
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='delete_folder',
-            filename=os.path.basename(folder_path),
-            file_path=target_path
-        )
-        
-        return jsonify({'success': True, 'path': folder_path, 'message': '文件夹删除成功'})
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Delete folder error: {str(e)}")
-        raise APIError(f'删除文件夹失败: {str(e)}', 500)
+#@app.route('/api/folders/<path:folder_path>', methods=['DELETE'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("30 per hour")
+#def delete_folder(folder_path):
+#    try:
+#        recursive = request.args.get('recursive', 'false').lower() == 'true'
+#        target_path = safe_path_join(HTML_ROOT_DIR, folder_path)
+#        
+#        has_access, error_msg = check_file_access(target_path, 'delete')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(target_path):
+#            raise APIError(f'文件夹不存在: {folder_path}', 404)
+#        
+#        if not os.path.isdir(target_path):
+#            raise APIError(f'指定的路径不是文件夹: {folder_path}', 400)
+#        
+#        if not recursive and len(os.listdir(target_path)) > 0:
+#            return jsonify({'error': '文件夹不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
+#        
+#        shutil.rmtree(target_path)
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='delete_folder',
+#            filename=os.path.basename(folder_path),
+#            file_path=target_path
+#        )
+#        
+#        return jsonify({'success': True, 'path': folder_path, 'message': '文件夹删除成功'})
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Delete folder error: {str(e)}")
+#        raise APIError(f'删除文件夹失败: {str(e)}', 500)
 
-@app.route('/api/move', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("30 per hour")
-def move_item():
-    try:
-        data = request.get_json()
-        if not data:
-            raise APIError('请提供JSON格式的数据', 400)
-        
-        source_paths = data.get('source_paths')
-        target_path = data.get('target_path')
-        
-        if not source_paths or not target_path:
-            raise APIError('请提供源路径和目标路径', 400)
-        
-        if isinstance(source_paths, str):
-            source_paths = [source_paths]
-        
-        target_full_path = safe_path_join(HTML_ROOT_DIR, target_path)
-        
-        has_access, error_msg = check_file_access(target_full_path, 'write')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(target_full_path):
-            raise APIError(f'目标目录不存在: {target_path}', 404)
-        
-        if not os.path.isdir(target_full_path):
-            raise APIError(f'目标路径不是目录: {target_path}', 400)
-        
-        results = {'success': [], 'failed': []}
-        
-        for source_path in source_paths:
-            try:
-                source_full_path = safe_path_join(HTML_ROOT_DIR, source_path)
-                
-                has_access, error_msg = check_file_access(source_full_path, 'move')
-                if not has_access:
-                    results['failed'].append({'path': source_path, 'error': error_msg})
-                    continue
-                
-                if not os.path.exists(source_full_path):
-                    results['failed'].append({'path': source_path, 'error': '文件或目录不存在'})
-                    continue
-                
-                source_name = os.path.basename(source_full_path)
-                dest_full_path = os.path.join(target_full_path, source_name)
-                
-                if os.path.exists(dest_full_path):
-                    results['failed'].append({'path': source_path, 'error': f'目标位置已存在同名项目: {source_name}'})
-                    continue
-                
-                if dest_full_path.startswith(source_full_path) and dest_full_path != source_full_path:
-                    results['failed'].append({'path': source_path, 'error': '不能将文件夹移动到其自身内部'})
-                    continue
-                
-                file_size = None
-                if os.path.isfile(source_full_path):
-                    file_size = os.path.getsize(source_full_path)
-                
-                shutil.move(source_full_path, dest_full_path)
-                
-                new_relative_path = os.path.join(target_path, source_name)
-                
-                log_file_operation(
-                    user_id=session['user_id'],
-                    username=session['username'],
-                    operation='move',
-                    filename=source_name,
-                    file_path=source_full_path,
-                    file_size=file_size,
-                    target_path=dest_full_path
-                )
-                
-                item_type = 'dir' if os.path.isdir(dest_full_path) else 'file'
-                
-                results['success'].append({
-                    'path': source_path,
-                    'new_path': new_relative_path,
-                    'name': source_name,
-                    'type': item_type,
-                    'size': file_size if file_size else 0,
-                    'modified': datetime.datetime.fromtimestamp(os.path.getmtime(dest_full_path)).strftime('%Y-%m-%d %H:%M:%S')
-                })
-                
-            except Exception as e:
-                results['failed'].append({'path': source_path, 'error': str(e)})
-        
-        if len(results['success']) == len(source_paths):
-            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目'})
-        elif len(results['success']) == 0:
-            raise APIError(f'移动失败: {results["failed"][0]["error"]}', 400)
-        else:
-            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'})
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Move error: {str(e)}")
-        raise APIError(f'移动失败: {str(e)}', 500)
+#@app.route('/api/move', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("30 per hour")
+#def move_item():
+#    try:
+#        data = request.get_json()
+#        if not data:
+#            raise APIError('请提供JSON格式的数据', 400)
+#        
+#        source_paths = data.get('source_paths')
+#        target_path = data.get('target_path')
+#        
+#        if not source_paths or not target_path:
+#            raise APIError('请提供源路径和目标路径', 400)
+#        
+#        if isinstance(source_paths, str):
+#            source_paths = [source_paths]
+#        
+#        target_full_path = safe_path_join(HTML_ROOT_DIR, target_path)
+#        
+#        has_access, error_msg = check_file_access(target_full_path, 'write')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(target_full_path):
+#            raise APIError(f'目标目录不存在: {target_path}', 404)
+#        
+#        if not os.path.isdir(target_full_path):
+#            raise APIError(f'目标路径不是目录: {target_path}', 400)
+#        
+#        results = {'success': [], 'failed': []}
+#        
+#        for source_path in source_paths:
+#            try:
+#                source_full_path = safe_path_join(HTML_ROOT_DIR, source_path)
+#                
+#                has_access, error_msg = check_file_access(source_full_path, 'move')
+#                if not has_access:
+#                    results['failed'].append({'path': source_path, 'error': error_msg})
+#                    continue
+#                
+#                if not os.path.exists(source_full_path):
+#                    results['failed'].append({'path': source_path, 'error': '文件或目录不存在'})
+#                    continue
+#                
+#                source_name = os.path.basename(source_full_path)
+#                dest_full_path = os.path.join(target_full_path, source_name)
+#                
+#                if os.path.exists(dest_full_path):
+#                    results['failed'].append({'path': source_path, 'error': f'目标位置已存在同名项目: {source_name}'})
+#                    continue
+#                
+#                if dest_full_path.startswith(source_full_path) and dest_full_path != source_full_path:
+#                    results['failed'].append({'path': source_path, 'error': '不能将文件夹移动到其自身内部'})
+#                    continue
+#                
+#                file_size = None
+#                if os.path.isfile(source_full_path):
+#                    file_size = os.path.getsize(source_full_path)
+#                
+#                shutil.move(source_full_path, dest_full_path)
+#                
+#                new_relative_path = os.path.join(target_path, source_name)
+#                
+#                log_file_operation(
+#                    user_id=session['user_id'],
+#                    username=session['username'],
+#                    operation='move',
+#                    filename=source_name,
+#                    file_path=source_full_path,
+#                    file_size=file_size,
+#                    target_path=dest_full_path
+#                )
+#                
+#                item_type = 'dir' if os.path.isdir(dest_full_path) else 'file'
+#                
+#                results['success'].append({
+#                    'path': source_path,
+#                    'new_path': new_relative_path,
+#                    'name': source_name,
+#                    'type': item_type,
+#                    'size': file_size if file_size else 0,
+#                    'modified': datetime.datetime.fromtimestamp(os.path.getmtime(dest_full_path)).strftime('%Y-%m-%d %H:%M:%S')
+#                })
+#                
+#            except Exception as e:
+#                results['failed'].append({'path': source_path, 'error': str(e)})
+#        
+#        if len(results['success']) == len(source_paths):
+#            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目'})
+#        elif len(results['success']) == 0:
+#            raise APIError(f'移动失败: {results["failed"][0]["error"]}', 400)
+#        else:
+#            return jsonify({'success': True, 'results': results, 'message': f'成功移动 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'})
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Move error: {str(e)}")
+#        raise APIError(f'移动失败: {str(e)}', 500)
 
-@app.route('/upload', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("20 per hour")
-def upload_file():
-    try:
-        if 'file' not in request.files:
-            raise APIError('请求中没有文件', 400)
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            raise APIError('请选择要上传的文件', 400)
-        
-        filename = secure_filename(file.filename)
-        if not filename:
-            raise APIError('无效的文件名', 400)
-        
-        upload_path = request.form.get('path', '')
-        
-        if upload_path:
-            upload_dir = safe_path_join(HTML_ROOT_DIR, upload_path)
-            has_access, error_msg = check_file_access(upload_dir, 'write')
-            if not has_access:
-                return jsonify({'error': error_msg}), 403
-            os.makedirs(upload_dir, exist_ok=True)
-        else:
-            if session.get('user_id') != 1:
-                raise APIError('普通用户不能在根目录上传文件', 403)
-            upload_dir = HTML_ROOT_DIR
-        
-        save_path = os.path.join(upload_dir, filename)
-        
-        if os.path.exists(save_path):
-            name, ext = os.path.splitext(filename)
-            timestamp = local_now().strftime('%Y%m%d_%H%M%S')
-            new_filename = f"{name}_{timestamp}{ext}"
-            save_path = os.path.join(upload_dir, new_filename)
-        else:
-            new_filename = filename
-        
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-        
-        if file_size > app.config['MAX_CONTENT_LENGTH']:
-            raise APIError(f'文件大小超过限制（最大{app.config["MAX_CONTENT_LENGTH"]//1024//1024}MB）', 400)
-        
-        file.save(save_path)
-        
-        if upload_path:
-            relative_path = os.path.join(upload_path, new_filename)
-        else:
-            relative_path = new_filename
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='upload',
-            filename=new_filename,
-            file_path=save_path,
-            file_size=file_size
-        )
-        
-        return jsonify({'success': True, 'filename': new_filename, 'path': relative_path, 'message': '文件上传成功'})
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"File upload error: {str(e)}")
-        raise APIError(f'文件上传失败: {str(e)}', 500)
+#@app.route('/upload', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("20 per hour")
+#def upload_file():
+#    try:
+#        if 'file' not in request.files:
+#            raise APIError('请求中没有文件', 400)
+#        
+#        file = request.files['file']
+#        
+#        if file.filename == '':
+#            raise APIError('请选择要上传的文件', 400)
+#        
+#        filename = secure_filename(file.filename)
+#        if not filename:
+#            raise APIError('无效的文件名', 400)
+#        
+#        upload_path = request.form.get('path', '')
+#        
+#        if upload_path:
+#            upload_dir = safe_path_join(HTML_ROOT_DIR, upload_path)
+#            has_access, error_msg = check_file_access(upload_dir, 'write')
+#            if not has_access:
+#                return jsonify({'error': error_msg}), 403
+#            os.makedirs(upload_dir, exist_ok=True)
+#        else:
+#            if session.get('user_id') != 1:
+#                raise APIError('普通用户不能在根目录上传文件', 403)
+#            upload_dir = HTML_ROOT_DIR
+#        
+#        save_path = os.path.join(upload_dir, filename)
+#        
+#        if os.path.exists(save_path):
+#            name, ext = os.path.splitext(filename)
+#            timestamp = local_now().strftime('%Y%m%d_%H%M%S')
+#            new_filename = f"{name}_{timestamp}{ext}"
+#            save_path = os.path.join(upload_dir, new_filename)
+#        else:
+#            new_filename = filename
+#        
+#        file.seek(0, os.SEEK_END)
+#        file_size = file.tell()
+#        file.seek(0)
+#        
+#        if file_size > app.config['MAX_CONTENT_LENGTH']:
+#            raise APIError(f'文件大小超过限制（最大{app.config["MAX_CONTENT_LENGTH"]//1024//1024}MB）', 400)
+#        
+#        file.save(save_path)
+#        
+#        if upload_path:
+#            relative_path = os.path.join(upload_path, new_filename)
+#        else:
+#            relative_path = new_filename
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='upload',
+#            filename=new_filename,
+#            file_path=save_path,
+#            file_size=file_size
+#        )
+#        
+#        return jsonify({'success': True, 'filename': new_filename, 'path': relative_path, 'message': '文件上传成功'})
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"File upload error: {str(e)}")
+#        raise APIError(f'文件上传失败: {str(e)}', 500)
 
-@app.route('/delete', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("30 per hour")
-def delete_item():
-    try:
-        data = request.get_json()
-        if not data:
-            raise APIError('请提供JSON格式的数据', 400)
-        
-        name = data.get('name') or data.get('filename')
-        recursive = data.get('recursive', False)
-        
-        if not name:
-            raise APIError('请提供要删除的文件或目录名', 400)
-        
-        item_path = safe_path_join(HTML_ROOT_DIR, name)
-        
-        has_access, error_msg = check_file_access(item_path, 'delete')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(item_path):
-            raise APIError(f'文件或目录不存在: {name}', 404)
-        
-        file_size = os.path.getsize(item_path) if os.path.isfile(item_path) else 0
-        
-        if os.path.isfile(item_path):
-            os.remove(item_path)
-            message = '文件删除成功'
-            deleted_type = 'file'
-            operation = 'delete'
-        elif os.path.isdir(item_path):
-            if not recursive and len(os.listdir(item_path)) > 0:
-                return jsonify({'error': '目录不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
-            
-            shutil.rmtree(item_path)
-            message = '目录删除成功'
-            deleted_type = 'dir'
-            operation = 'delete_dir'
-            file_size = None
-        else:
-            raise APIError('未知的路径类型', 400)
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation=operation,
-            filename=name,
-            file_path=item_path,
-            file_size=file_size
-        )
-        
-        return jsonify({'success': True, 'name': name, 'type': deleted_type, 'message': message})
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Delete error: {str(e)}")
-        raise APIError(f'删除失败: {str(e)}', 500)
+#@app.route('/delete', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("30 per hour")
+#def delete_item():
+#    try:
+#        data = request.get_json()
+#        if not data:
+#            raise APIError('请提供JSON格式的数据', 400)
+#        
+#        name = data.get('name') or data.get('filename')
+#        recursive = data.get('recursive', False)
+#        
+#        if not name:
+#            raise APIError('请提供要删除的文件或目录名', 400)
+#        
+#        item_path = safe_path_join(HTML_ROOT_DIR, name)
+#        
+#        has_access, error_msg = check_file_access(item_path, 'delete')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(item_path):
+#            raise APIError(f'文件或目录不存在: {name}', 404)
+#        
+#        file_size = os.path.getsize(item_path) if os.path.isfile(item_path) else 0
+#        
+#        if os.path.isfile(item_path):
+#            os.remove(item_path)
+#            message = '文件删除成功'
+#            deleted_type = 'file'
+#            operation = 'delete'
+#        elif os.path.isdir(item_path):
+#            if not recursive and len(os.listdir(item_path)) > 0:
+#                return jsonify({'error': '目录不为空，如需删除请设置 recursive=true', 'requires_confirmation': True}), 400
+#            
+#            shutil.rmtree(item_path)
+#            message = '目录删除成功'
+#            deleted_type = 'dir'
+#            operation = 'delete_dir'
+#            file_size = None
+#        else:
+#            raise APIError('未知的路径类型', 400)
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation=operation,
+#            filename=name,
+#            file_path=item_path,
+#            file_size=file_size
+#        )
+#        
+#        return jsonify({'success': True, 'name': name, 'type': deleted_type, 'message': message})
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Delete error: {str(e)}")
+#        raise APIError(f'删除失败: {str(e)}', 500)
 
-@app.route('/delete-multiple', methods=['POST'])
-@login_required
-@filesystem_required
-@limiter.limit("10 per hour")
-def delete_multiple():
-    try:
-        data = request.get_json()
-        if not data or 'items' not in data:
-            raise APIError('请提供要删除的项目列表', 400)
-        
-        items = data['items']
-        recursive = data.get('recursive', False)
-        
-        if len(items) > 50:
-            raise APIError('一次最多删除50个项目', 400)
-        
-        results = {'success': [], 'failed': []}
-        
-        for item in items:
-            try:
-                name = item if isinstance(item, str) else item.get('name')
-                if not name:
-                    results['failed'].append({'name': 'unknown', 'error': '无效的项目名称'})
-                    continue
-                
-                item_path = safe_path_join(HTML_ROOT_DIR, name)
-                
-                has_access, error_msg = check_file_access(item_path, 'delete')
-                if not has_access:
-                    results['failed'].append({'name': name, 'error': error_msg})
-                    continue
-                
-                if not os.path.exists(item_path):
-                    results['failed'].append({'name': name, 'error': '文件或目录不存在'})
-                    continue
-                
-                if os.path.isfile(item_path):
-                    file_size = os.path.getsize(item_path)
-                    os.remove(item_path)
-                    results['success'].append({'name': name, 'type': 'file'})
-                    log_file_operation(
-                        user_id=session['user_id'],
-                        username=session['username'],
-                        operation='batch_delete',
-                        filename=name,
-                        file_path=item_path,
-                        file_size=file_size
-                    )
-                elif os.path.isdir(item_path):
-                    if not recursive and len(os.listdir(item_path)) > 0:
-                        results['failed'].append({'name': name, 'error': '目录不为空'})
-                    else:
-                        shutil.rmtree(item_path)
-                        results['success'].append({'name': name, 'type': 'dir'})
-                        log_file_operation(
-                            user_id=session['user_id'],
-                            username=session['username'],
-                            operation='batch_delete_dir',
-                            filename=name,
-                            file_path=item_path
-                        )
-                else:
-                    results['failed'].append({'name': name, 'error': '未知的文件类型'})
-                    
-            except Exception as e:
-                results['failed'].append({'name': name if 'name' in locals() else 'unknown', 'error': str(e)})
-        
-        return jsonify({
-            'success': True,
-            'results': results,
-            'message': f'成功删除 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'
-        })
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Batch delete error: {str(e)}")
-        raise APIError(f'批量删除失败: {str(e)}', 500)
-
-@app.route('/download/<path:filename>', methods=['GET'])
-@login_required
-@filesystem_required
-def download_file(filename):
-    try:
-        file_path = safe_path_join(HTML_ROOT_DIR, filename)
-        
-        has_access, error_msg = check_file_access(file_path, 'download')
-        if not has_access:
-            return jsonify({'error': error_msg}), 403
-        
-        if not os.path.exists(file_path):
-            raise APIError('文件不存在', 404)
-        
-        if not os.path.isfile(file_path):
-            raise APIError('不是有效的文件', 400)
-        
-        file_size = os.path.getsize(file_path)
-        
-        log_file_operation(
-            user_id=session['user_id'],
-            username=session['username'],
-            operation='download',
-            filename=os.path.basename(file_path),
-            file_path=file_path,
-            file_size=file_size
-        )
-        
-        return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
-        
-    except APIError as e:
-        raise e
-    except Exception as e:
-        logger.error(f"Download error: {str(e)}")
-        raise APIError(f'下载失败: {str(e)}', 500)
+#@app.route('/delete-multiple', methods=['POST'])
+#@login_required
+#@filesystem_required
+#@limiter.limit("10 per hour")
+#def delete_multiple():
+#    try:
+#        data = request.get_json()
+#        if not data or 'items' not in data:
+#            raise APIError('请提供要删除的项目列表', 400)
+#        
+#        items = data['items']
+#        recursive = data.get('recursive', False)
+#        
+#        if len(items) > 50:
+#            raise APIError('一次最多删除50个项目', 400)
+#        
+#        results = {'success': [], 'failed': []}
+#        
+#        for item in items:
+#            try:
+#                name = item if isinstance(item, str) else item.get('name')
+#                if not name:
+#                    results['failed'].append({'name': 'unknown', 'error': '无效的项目名称'})
+#                    continue
+#                
+#                item_path = safe_path_join(HTML_ROOT_DIR, name)
+#                
+#                has_access, error_msg = check_file_access(item_path, 'delete')
+#                if not has_access:
+#                    results['failed'].append({'name': name, 'error': error_msg})
+#                    continue
+#                
+#                if not os.path.exists(item_path):
+#                    results['failed'].append({'name': name, 'error': '文件或目录不存在'})
+#                    continue
+#                
+#                if os.path.isfile(item_path):
+#                    file_size = os.path.getsize(item_path)
+#                    os.remove(item_path)
+#                    results['success'].append({'name': name, 'type': 'file'})
+#                    log_file_operation(
+#                        user_id=session['user_id'],
+#                        username=session['username'],
+#                        operation='batch_delete',
+#                        filename=name,
+#                        file_path=item_path,
+#                        file_size=file_size
+#                    )
+#                elif os.path.isdir(item_path):
+#                    if not recursive and len(os.listdir(item_path)) > 0:
+#                        results['failed'].append({'name': name, 'error': '目录不为空'})
+#                    else:
+#                        shutil.rmtree(item_path)
+#                        results['success'].append({'name': name, 'type': 'dir'})
+#                        log_file_operation(
+#                            user_id=session['user_id'],
+#                            username=session['username'],
+#                            operation='batch_delete_dir',
+#                            filename=name,
+#                            file_path=item_path
+#                        )
+#                else:
+#                    results['failed'].append({'name': name, 'error': '未知的文件类型'})
+#                    
+#            except Exception as e:
+#                results['failed'].append({'name': name if 'name' in locals() else 'unknown', 'error': str(e)})
+#        
+#        return jsonify({
+#            'success': True,
+#            'results': results,
+#            'message': f'成功删除 {len(results["success"])} 个项目，失败 {len(results["failed"])} 个'
+#        })
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Batch delete error: {str(e)}")
+#        raise APIError(f'批量删除失败: {str(e)}', 500)
+#
+#@app.route('/download/<path:filename>', methods=['GET'])
+#@login_required
+#@filesystem_required
+#def download_file(filename):
+#    try:
+#        file_path = safe_path_join(HTML_ROOT_DIR, filename)
+#        
+#        has_access, error_msg = check_file_access(file_path, 'download')
+#        if not has_access:
+#            return jsonify({'error': error_msg}), 403
+#        
+#        if not os.path.exists(file_path):
+#            raise APIError('文件不存在', 404)
+#        
+#        if not os.path.isfile(file_path):
+#            raise APIError('不是有效的文件', 400)
+#        
+#        file_size = os.path.getsize(file_path)
+#        
+#        log_file_operation(
+#            user_id=session['user_id'],
+#            username=session['username'],
+#            operation='download',
+#            filename=os.path.basename(file_path),
+#            file_path=file_path,
+#            file_size=file_size
+#        )
+#        
+#        return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
+#        
+#    except APIError as e:
+#        raise e
+#    except Exception as e:
+#        logger.error(f"Download error: {str(e)}")
+#        raise APIError(f'下载失败: {str(e)}', 500)
 
 # ==================== 审计日志 API ====================
 @app.route('/api/audit/file-operations', methods=['GET'])
