@@ -16,8 +16,8 @@ allowed_origins = http://localhost:5000,http://127.0.0.1:5000,http://localhost:3
 [security]
 max_content_length_mb = 100
 session_lifetime_hours = 24
-rate_limit_default = 200 per day;50 per hour
+rate_limit_default = 2000 per day;500 per hour
 
 [proxy]
 enabled = true
-allowed_targets = http://localhost:9210
+allowed_targets = http://localhost:5001,ws://localhost:5002,http://localhost:5005,http://localhost:5004,http://localhost:5200,ws://localhost:8765
