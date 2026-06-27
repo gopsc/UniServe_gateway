@@ -2,7 +2,7 @@
 .vscode/
 
 # PRJ
-config.ini
+#config.ini
 *.pem
 aes_key.txt
 public/users/

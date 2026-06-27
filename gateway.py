@@ -93,31 +93,6 @@ CORS(app,
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      allow_headers=['Content-Type', 'Authorization'])
 
-try:
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://"
-    )
-    logger.info("使用 Flask-Limiter 3.0+ 初始化方式")
-except TypeError:
-    try:
-        limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            default_limits=["200 per day", "50 per hour"],
-            storage_uri="memory://"
-        )
-        logger.info("使用 Flask-Limiter 2.x 初始化方式")
-    except TypeError as e:
-        logger.warning(f"Limiter初始化失败: {e}，使用基础配置")
-        limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            default_limits=["200 per day", "50 per hour"]
-        )
-
 # ==================== 配置文件加载 ====================
 CONFIG_FILE = args.config
 
@@ -140,7 +115,8 @@ file_config = {
     'security': {
         'max_content_length_mb': '100',
         'session_lifetime_hours': '24',
-        'rate_limit_default': '200 per day;50 per hour'
+        'rate_limit_default': '2000 per day;500 per hour;50 per minute;10 per second',  # 默认为空，表示无限流
+        'rate_limit_enabled': 'false'  # 新增：是否启用限流
     },
     'proxy': {
         'enabled': 'true',
@@ -211,6 +187,43 @@ PROXY_ALLOWED_TARGETS = []
 if file_config['proxy'].get('allowed_targets'):
     PROXY_ALLOWED_TARGETS = [target.strip() for target in file_config['proxy']['allowed_targets'].split(',') if target.strip()]
 logger.info(f"Proxy enabled: {PROXY_ENABLED}, allowed targets: {PROXY_ALLOWED_TARGETS}")
+
+# ==================== 初始化 Limiter（从配置文件读取） ====================
+rate_limit_enabled = file_config['security'].get('rate_limit_enabled', 'false').lower() == 'true'
+rate_limit_config = file_config['security'].get('rate_limit_default', '')
+
+if rate_limit_enabled and rate_limit_config and rate_limit_config.strip():
+    # 解析配置，支持分号分隔的多个限制
+    limits = [limit.strip() for limit in rate_limit_config.split(';') if limit.strip()]
+    logger.info(f"限流已启用，限制规则: {limits}")
+else:
+    limits = []  # 无限制
+    logger.info("限流已禁用")
+
+try:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=limits,
+        storage_uri="memory://"
+    )
+    logger.info(f"使用 Flask-Limiter 3.0+ 初始化方式，限流配置: {limits if limits else '无限制'}")
+except TypeError:
+    try:
+        limiter = Limiter(
+            app=app,
+            key_func=get_remote_address,
+            default_limits=limits,
+            storage_uri="memory://"
+        )
+        logger.info(f"使用 Flask-Limiter 2.x 初始化方式，限流配置: {limits if limits else '无限制'}")
+    except TypeError as e:
+        logger.warning(f"Limiter初始化失败: {e}，使用基础配置")
+        limiter = Limiter(
+            app=app,
+            key_func=get_remote_address,
+            default_limits=limits
+        )
 
 # ==================== 视频文件支持的MIME类型 ====================
 VIDEO_MIME_TYPES = {
@@ -2158,6 +2171,12 @@ if __name__ == '__main__':
     if PROXY_ENABLED:
         print(f"允许代理的目标: {', '.join(PROXY_ALLOWED_TARGETS)}")
         print(f"WebSocket代理: ✅ 支持 (通过 Socket.IO)")
+    
+    # 显示限流状态
+    if rate_limit_enabled and limits:
+        print(f"限流功能: ✅ 启用 (限制规则: {', '.join(limits)})")
+    else:
+        print(f"限流功能: ❌ 禁用")
     print("="*60)
     
     print("\n🎬 视频播放功能:")
