@@ -1,3 +1,4 @@
+# UniServe_gateway.py - 完整版本
 from flask import Flask, render_template, send_from_directory, jsonify, request, Response, session, send_file, stream_with_context, redirect
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -24,6 +25,8 @@ import sys
 import uuid
 import threading
 import websocket
+import time
+import socket as socket_lib
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -120,7 +123,7 @@ file_config = {
     },
     'proxy': {
         'enabled': 'true',
-        'allowed_targets': 'http://localhost:5001,ws://localhost:5002,http://localhost:5200,http://localhost:8000,ws://localhost:8765',
+        'allowed_targets': 'http://localhost:5001,ws://localhost:5002,http://localhost:5200,http://localhost:8000,ws://localhost:8765,http://localhost:5004,ws://localhost:5004',
         'forward_user_headers': 'true'
     }
 }
@@ -191,7 +194,7 @@ PROXY_FORWARD_USER_HEADERS = file_config['proxy'].get('forward_user_headers', 't
 logger.info(f"Proxy enabled: {PROXY_ENABLED}, allowed targets: {PROXY_ALLOWED_TARGETS}")
 logger.info(f"Forward user headers: {PROXY_FORWARD_USER_HEADERS}")
 
-# ==================== 初始化 Limiter（从配置文件读取） ====================
+# ==================== 初始化 Limiter ====================
 rate_limit_enabled = file_config['security'].get('rate_limit_enabled', 'false').lower() == 'true'
 rate_limit_config = file_config['security'].get('rate_limit_default', '')
 
@@ -258,21 +261,17 @@ AUDIO_MIME_TYPES = {
 }
 
 def is_video_file(filename):
-    """检查文件是否为视频文件"""
     ext = os.path.splitext(filename)[1].lower()
     return ext in VIDEO_MIME_TYPES
 
 def is_audio_file(filename):
-    """检查文件是否为音频文件"""
     ext = os.path.splitext(filename)[1].lower()
     return ext in AUDIO_MIME_TYPES
 
 def is_media_file(filename):
-    """检查文件是否为媒体文件（视频或音频）"""
     return is_video_file(filename) or is_audio_file(filename)
 
 def get_media_mime_type(filename):
-    """获取媒体文件的MIME类型"""
     ext = os.path.splitext(filename)[1].lower()
     if ext in VIDEO_MIME_TYPES:
         return VIDEO_MIME_TYPES[ext]
@@ -282,99 +281,72 @@ def get_media_mime_type(filename):
 
 # ==================== 权限检查辅助函数 ====================
 def check_file_access(file_path, operation='read'):
-    """
-    检查用户是否有权限访问指定文件/目录
-    返回 (has_access, error_message, redirect_path)
-    """
-    # 获取相对于根目录的路径
     try:
         rel_path = os.path.relpath(file_path, HTML_ROOT_DIR)
     except ValueError:
         return False, "无效的路径", None
     
-    # 标准化路径（使用正斜杠）
     rel_path = rel_path.replace('\\', '/')
     
-    # 如果路径是 '.'，表示根目录
     if rel_path == '.':
-        # 所有人都可以访问根目录
         return True, None, None
     
     path_parts = rel_path.split('/')
     
-    # 检查是否访问 users 目录
     if len(path_parts) >= 1 and path_parts[0] == 'users':
-        # 未登录用户不能访问 users 目录
         if 'user_id' not in session:
             return False, "请先登录后访问 users 目录", None
         
         user_id = session['user_id']
         username = session['username']
         
-        # Admin 用户可以访问所有 users 目录
         if user_id == 1:
             return True, None, None
         
-        # 普通用户：只能访问自己的目录
         if len(path_parts) >= 2:
             target_username = path_parts[1]
             if target_username == username:
                 return True, None, None
             else:
-                # 重定向到自己的目录
                 redirect_path = f"users/{username}"
                 return False, f"您只能访问自己的文件夹 (users/{username}/)", redirect_path
         else:
-            # 访问 users 根目录，重定向到自己的目录
             redirect_path = f"users/{username}"
             return False, f"您只能访问自己的文件夹 (users/{username}/)", redirect_path
     
-    # 非 users 目录（如 public），所有人都可以访问
     return True, None, None
 
 def get_user_accessible_path(requested_path):
-    """
-    获取用户可访问的路径
-    返回 (accessible_path, redirect_path, error_message)
-    """
     if not requested_path:
         requested_path = ''
     
-    # 标准化路径
     requested_path = requested_path.lstrip('/')
     if requested_path == '':
         return '', None, None
     
     path_parts = requested_path.split('/')
     
-    # 检查是否访问 users 目录
     if len(path_parts) >= 1 and path_parts[0] == 'users':
-        # 未登录用户不能访问 users 目录
         if 'user_id' not in session:
             return None, None, "请先登录后访问 users 目录"
         
         user_id = session['user_id']
         username = session['username']
         
-        # Admin 用户可以访问所有 users 目录
         if user_id == 1:
             return requested_path, None, None
         
-        # 普通用户：只能访问自己的目录
         if len(path_parts) >= 2:
             target_username = path_parts[1]
             if target_username == username:
                 return requested_path, None, None
             else:
-                # 重定向到自己的目录
                 redirect_path = f"users/{username}"
                 return None, redirect_path, f"您只能访问自己的文件夹 (users/{username}/)"
         else:
-            # 访问 users 根目录，重定向到自己的目录
             redirect_path = f"users/{username}"
             return None, redirect_path, f"您只能访问自己的文件夹 (users/{username}/)"
     
-    # 非 users 目录，所有人都可以访问
     return requested_path, None, None
 
 # ==================== WebSocket 代理管理 ====================
@@ -388,7 +360,8 @@ class WebSocketProxyManager:
             self.active_connections[sid] = {
                 'target_url': target_url,
                 'target_ws': None,
-                'thread': None
+                'thread': None,
+                'created': time.time()
             }
         return sid
     
@@ -406,6 +379,10 @@ class WebSocketProxyManager:
     def get_connection(self, sid):
         with self.lock:
             return self.active_connections.get(sid)
+    
+    def get_all_connections(self):
+        with self.lock:
+            return dict(self.active_connections)
 
 ws_manager = WebSocketProxyManager()
 
@@ -786,10 +763,8 @@ def proxy_required(f):
     return decorated_function
 
 def file_access_required(f):
-    """装饰器：检查文件访问权限"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 获取文件路径参数
         file_path_param = kwargs.get('file_path') or kwargs.get('folder_path') or kwargs.get('path')
         
         if file_path_param:
@@ -809,6 +784,128 @@ def file_access_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# ==================== Socket.IO 代理路由（新增） ====================
+@app.route('/socket.io/', methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/socket.io/<path:path>', methods=['GET', 'POST', 'OPTIONS'])
+def socketio_proxy(path=''):
+    """
+    专门处理 Socket.IO 的代理请求
+    包括 WebSocket 升级和 HTTP 轮询
+    """
+    try:
+        # 检查是否启用代理
+        if not PROXY_ENABLED:
+            return jsonify({'error': '代理功能未启用'}), 403
+        
+        # 检查用户认证
+        if 'user_id' not in session:
+            logger.warning(f"Unauthorized Socket.IO request from {request.remote_addr}")
+            return jsonify({'error': '请先登录'}), 401
+        
+        # 获取查询参数
+        query_string = request.query_string.decode('utf-8') if request.query_string else ''
+        
+        # 构建目标 URL
+        target_url = f"http://localhost:5004/socket.io/{path}"
+        if query_string:
+            target_url += f"?{query_string}"
+        
+        logger.info(f"Socket.IO proxy: {request.method} {target_url}")
+        
+        # 检查是否是 WebSocket 升级请求
+        upgrade = request.headers.get('Upgrade', '').lower()
+        connection = request.headers.get('Connection', '').lower()
+        
+        if upgrade == 'websocket' and 'upgrade' in connection:
+            logger.info(f"WebSocket upgrade request to: {target_url}")
+            
+            # 对于 WebSocket 升级，我们需要建立一个 WebSocket 连接到后端
+            # 然后通过 HTTP 流式传输数据
+            # 但由于 Flask 的限制，这里使用一种变通方法：
+            # 我们返回一个特殊的响应，让前端直接连接到后端 WebSocket
+            # 同时，我们通过 HTTP 代理保持认证信息
+            
+            # 创建一个 WebSocket 连接到后端
+            try:
+                import websocket
+                
+                # 构建 WebSocket URL
+                ws_url = target_url.replace('http://', 'ws://')
+                logger.info(f"Establishing WebSocket connection to: {ws_url}")
+                
+                # 创建 WebSocket 连接
+                ws = websocket.WebSocket()
+                ws.connect(ws_url, header={
+                    'X-Proxy-User': str(session.get('username', 'unknown')),
+                    'X-Proxy-User-ID': str(session.get('user_id', 0)),
+                    'X-Proxy-Is-Admin': 'true' if session.get('is_admin', False) else 'false'
+                })
+                
+                # 这里我们可以实现一个双向代理，但为了简化，
+                # 我们让前端直接连接到后端 WebSocket
+                # 返回 307 重定向到后端的 WebSocket
+                response = Response('', status=307)
+                response.headers['Location'] = ws_url
+                response.headers['X-WebSocket-Proxy'] = 'direct'
+                response.headers['X-Backend-URL'] = ws_url
+                response.headers['X-Authenticated-User'] = session.get('username', '')
+                return response
+                
+            except Exception as e:
+                logger.error(f"WebSocket connection error: {e}")
+                return jsonify({'error': f'WebSocket连接失败: {str(e)}'}), 502
+        
+        # 对于普通的 HTTP 请求（轮询）
+        # 转发请求到后端
+        headers = {}
+        excluded_headers = ['host', 'connection', 'content-length', 'transfer-encoding', 'accept-encoding']
+        for key, value in request.headers:
+            if key.lower() not in excluded_headers:
+                headers[key] = value
+        
+        # 添加用户信息到请求头
+        if PROXY_FORWARD_USER_HEADERS and 'user_id' in session:
+            headers['X-Proxy-User'] = str(session.get('username', 'unknown'))
+            headers['X-Proxy-User-ID'] = str(session.get('user_id', 0))
+            headers['X-Proxy-Is-Admin'] = 'true' if session.get('is_admin', False) else 'false'
+            headers['X-Authenticated-User'] = str(session.get('username', ''))
+            headers['X-Authenticated-User-Id'] = str(session.get('user_id', 0))
+            headers['X-User-Role'] = 'admin' if session.get('is_admin', False) else 'user'
+            headers['X-Real-IP'] = request.remote_addr
+            headers['X-Session-ID'] = request.cookies.get('session', '')
+        
+        data = request.get_data() if request.get_data() else None
+        
+        # 转发请求
+        response = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=data,
+            timeout=30,
+            verify=False,
+            allow_redirects=True
+        )
+        
+        # 返回响应
+        response_headers = {}
+        excluded_response_headers = ['content-encoding', 'transfer-encoding', 'connection']
+        for key, value in response.headers.items():
+            if key.lower() not in excluded_response_headers:
+                response_headers[key] = value
+        
+        return Response(response.content, status=response.status_code, headers=response_headers)
+        
+    except requests.exceptions.Timeout:
+        logger.error(f"Socket.IO request timeout: {target_url}")
+        return jsonify({'error': 'Socket.IO 请求超时'}), 504
+    except requests.exceptions.ConnectionError:
+        logger.error(f"Socket.IO connection error: {target_url}")
+        return jsonify({'error': f'无法连接到后端 Socket.IO 服务 (http://localhost:5004)'}), 502
+    except Exception as e:
+        logger.error(f"Socket.IO proxy error: {str(e)}")
+        return jsonify({'error': f'Socket.IO 代理失败: {str(e)}'}), 500
+
 # ==================== HTTP 代理视图 ====================
 @app.route('/proxy/<path:target>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'])
 @login_required
@@ -818,6 +915,7 @@ def proxy_request(target):
     try:
         method = request.method
         
+        # 检查是否是 WebSocket 升级请求
         upgrade = request.headers.get('Upgrade', '').lower()
         connection = request.headers.get('Connection', '').lower()
         
@@ -844,34 +942,28 @@ def proxy_request(target):
             if key.lower() not in excluded_headers:
                 headers[key] = value
         
-        # ========== 添加用户身份信息到请求头 ==========
+        # 添加用户身份信息到请求头
         if PROXY_FORWARD_USER_HEADERS and 'user_id' in session:
             user_id = session.get('user_id')
             username = session.get('username')
             is_admin = session.get('is_admin', False)
             
-            # 标准用户信息头
             headers['X-Proxy-User'] = str(username) if username else 'unknown'
             headers['X-Proxy-User-ID'] = str(user_id) if user_id else '0'
             headers['X-Proxy-Is-Admin'] = 'true' if is_admin else 'false'
-            
-            # 额外的用户信息头（方便后端服务获取）
             headers['X-Authenticated-User'] = str(username) if username else ''
             headers['X-Authenticated-User-Id'] = str(user_id) if user_id else ''
             headers['X-User-Role'] = 'admin' if is_admin else 'user'
             
-            # 原始IP地址（如果代理链中有）
             if request.headers.get('X-Forwarded-For'):
                 headers['X-Forwarded-For'] = request.headers.get('X-Forwarded-For')
             elif request.remote_addr:
                 headers['X-Real-IP'] = request.remote_addr
             
-            # 用户会话信息
             headers['X-Session-ID'] = request.cookies.get('session', '')
             
             logger.info(f"Forwarding user info to {target}: user={username}, id={user_id}, is_admin={is_admin}")
         elif PROXY_FORWARD_USER_HEADERS:
-            # 未登录用户
             headers['X-Proxy-User'] = 'anonymous'
             headers['X-Proxy-User-ID'] = '0'
             headers['X-Proxy-Is-Admin'] = 'false'
@@ -1078,7 +1170,6 @@ def get_file_list():
     try:
         requested_path = request.args.get('path', '')
         
-        # 获取可访问路径
         accessible_path, redirect_path, error_msg = get_user_accessible_path(requested_path)
         
         if error_msg:
@@ -1089,7 +1180,6 @@ def get_file_list():
             }), 401 if 'user_id' not in session else 403
         
         if redirect_path:
-            # 需要重定向
             return jsonify({
                 'success': False,
                 'error': error_msg,
@@ -1112,7 +1202,6 @@ def get_file_list():
             if item == '__pycache__':
                 continue
             
-            # 如果是 users 目录，检查访问权限
             if item == 'users' and 'user_id' not in session:
                 continue
             
@@ -1130,7 +1219,6 @@ def get_file_list():
             
             modified_time = datetime.datetime.fromtimestamp(item_stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
             
-            # 判断文件类型
             file_type = 'file'
             if is_dir:
                 file_type = 'dir'
@@ -1190,7 +1278,6 @@ def stream_video(file_path):
     try:
         full_path = safe_path_join(HTML_ROOT_DIR, file_path)
         
-        # 检查权限
         has_access, error_msg, redirect_path = check_file_access(full_path)
         if not has_access:
             if redirect_path:
@@ -1215,11 +1302,9 @@ def stream_video(file_path):
         file_name = os.path.basename(full_path)
         mime_type = get_media_mime_type(full_path)
         
-        # 处理Range请求（支持视频拖动）
         range_header = request.headers.get('Range', None)
         
         if range_header:
-            # 解析Range请求
             byte_range = range_header.replace('bytes=', '').split('-')
             start = int(byte_range[0]) if byte_range[0] else 0
             end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
@@ -1229,12 +1314,10 @@ def stream_video(file_path):
             
             length = end - start + 1
             
-            # 读取指定范围的数据
             with open(full_path, 'rb') as f:
                 f.seek(start)
                 data = f.read(length)
             
-            # 记录播放操作
             if 'user_id' in session:
                 log_file_operation(
                     user_id=session['user_id'],
@@ -1247,7 +1330,7 @@ def stream_video(file_path):
             
             response = Response(
                 data,
-                206,  # Partial Content
+                206,
                 mimetype=mime_type,
                 direct_passthrough=True
             )
@@ -1258,8 +1341,6 @@ def stream_video(file_path):
             
             return response
         else:
-            # 完整文件请求
-            # 记录播放操作
             if 'user_id' in session:
                 log_file_operation(
                     user_id=session['user_id'],
@@ -1291,7 +1372,6 @@ def get_video_info(file_path):
     try:
         full_path = safe_path_join(HTML_ROOT_DIR, file_path)
         
-        # 检查权限
         has_access, error_msg, redirect_path = check_file_access(full_path)
         if not has_access:
             if redirect_path:
@@ -1313,7 +1393,6 @@ def get_video_info(file_path):
         file_name = os.path.basename(full_path)
         file_ext = os.path.splitext(full_path)[1].lower()
         
-        # 获取文件修改时间
         modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(full_path))
         
         video_info = {
@@ -1347,7 +1426,6 @@ def get_video_list():
     try:
         path = request.args.get('path', '')
         
-        # 检查路径权限
         accessible_path, redirect_path, error_msg = get_user_accessible_path(path)
         if error_msg:
             return jsonify({'error': error_msg}), 401 if 'user_id' not in session else 403
@@ -1362,10 +1440,8 @@ def get_video_list():
         videos = []
         
         for root, dirs, files in os.walk(full_path):
-            # 跳过__pycache__目录
             dirs[:] = [d for d in dirs if d != '__pycache__']
             
-            # 如果是 users 目录且用户不是admin，只扫描自己的目录
             rel_root = os.path.relpath(root, HTML_ROOT_DIR)
             if rel_root.startswith('users/') and 'user_id' in session and session.get('user_id') != 1:
                 parts = rel_root.split('/')
@@ -1390,7 +1466,6 @@ def get_video_list():
                         'stream_url': f'/video/{file_rel_path}',
                     })
         
-        # 按修改时间排序
         videos.sort(key=lambda x: x['modified'], reverse=True)
         
         return jsonify({
@@ -1411,7 +1486,6 @@ def get_video_list():
 @filesystem_required
 def serve_html(path=''):
     try:
-        # 获取可访问路径
         accessible_path, redirect_path, error_msg = get_user_accessible_path(path)
         
         if error_msg:
@@ -1434,7 +1508,6 @@ def serve_html(path=''):
                 if 'user_id' not in session:
                     return jsonify({'error': '请先登录后下载文件'}), 401
                 
-                # 检查下载权限
                 has_access, error_msg, redirect_path = check_file_access(real_path)
                 if not has_access:
                     if redirect_path:
@@ -1457,21 +1530,17 @@ def serve_html(path=''):
                     mimetype='application/octet-stream'
                 )
             else:
-                # 如果是视频文件，重定向到视频流播放页面
                 if is_video_file(real_path) or is_audio_file(real_path):
-                    # 读取视频播放器模板
                     player_template_path = os.path.join(os.path.dirname(__file__), 'templates', 'video_player.html')
                     
                     if os.path.exists(player_template_path):
                         with open(player_template_path, 'r', encoding='utf-8') as f:
                             player_html = f.read()
                         
-                        # 获取文件信息
                         file_size = os.path.getsize(real_path)
                         file_name = os.path.basename(real_path)
                         mime_type = get_media_mime_type(real_path)
                         
-                        # 注入视频信息
                         video_data = {
                             'name': file_name,
                             'path': accessible_path,
@@ -1498,10 +1567,8 @@ def serve_html(path=''):
                         
                         return Response(rendered_html, mimetype='text/html')
                     else:
-                        # 如果没有播放器模板，直接返回视频文件
                         return send_file(real_path, mimetype=mime_type)
                 
-                # 对于其他文件类型，直接返回文件内容
                 with open(real_path, 'rb') as f:
                     file_content = f.read()
                 
@@ -1535,7 +1602,6 @@ def serve_html(path=''):
             for item in os.listdir(real_path):
                 item_path = os.path.join(real_path, item)
                 
-                # 如果是 users 目录且未登录，跳过
                 if item == 'users' and 'user_id' not in session:
                     continue
                 
@@ -1567,7 +1633,6 @@ def serve_html(path=''):
         for item in os.listdir(real_path):
             item_path = os.path.join(real_path, item)
             
-            # 如果是 users 目录且未登录，跳过
             if item == 'users' and 'user_id' not in session:
                 continue
             
@@ -1747,7 +1812,6 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
-        # 创建用户目录
         user_folder = os.path.join(HTML_ROOT_DIR, 'users', username)
         os.makedirs(user_folder, exist_ok=True)
         logger.info(f"Created user folder for {username}: {user_folder}")
@@ -2297,6 +2361,13 @@ if __name__ == '__main__':
     print("- 📹 视频播放路径: /video/{文件路径}")
     print("- 📊 视频信息API: /api/video/info/{文件路径}")
     print("- 📋 视频列表API: /api/videos")
+    
+    print("\n🔌 Socket.IO 代理:")
+    print("- ✅ 支持 Socket.IO 连接转发")
+    print("- ✅ 支持 WebSocket 升级")
+    print("- ✅ 支持 HTTP 轮询")
+    print("- 🔗 Socket.IO 端点: /socket.io")
+    print("- 🎯 后端目标: http://localhost:5004")
     
     print("\n🔒 安全提示:")
     print("- 请务必在生产环境中修改默认管理员密码")
