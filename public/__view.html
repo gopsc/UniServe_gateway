@@ -94,6 +94,7 @@
       display: flex;
       gap: 10px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .mgmt-btn {
@@ -134,6 +135,27 @@
 
     .logout-btn:hover {
       background: #ffd4d4;
+    }
+
+    .home-btn {
+      background: #e8f0fe;
+      border: 1px solid #b3c9e8;
+      color: #1a4c8a;
+      padding: 10px 20px;
+      border-radius: 34px;
+      font-weight: 580;
+      cursor: pointer;
+      transition: 0.2s;
+      font-size: 0.88rem;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .home-btn:hover {
+      background: #d0e0fa;
+      border-color: #8ab0e0;
     }
 
     /* 路径导航 */
@@ -483,6 +505,20 @@
         padding: 8px 12px;
         font-size: 12px;
       }
+      
+      .admin-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      
+      .user-section {
+        justify-content: center;
+      }
+      
+      .management-links {
+        justify-content: center;
+      }
     }
 
     @media (min-width: 900px) {
@@ -550,10 +586,12 @@
       <span id="userDisplayArea">加载身份中...</span>
     </div>
     <div class="management-links">
+      <button class="home-btn" id="homeButton" style="display: none;" title="回到我的文件夹">
+        <span>🏠</span> 我的文件夹
+      </button>
       <a href="/__login.html" class="mgmt-btn" id="loginLink">
         <span>🔐</span> 登录
       </a>
-      <!-- 修改：使用 button 并通过 JS 在新标签页打开设置页面 -->
       <button class="mgmt-btn" id="settingsButton" onclick="openSettings()">
         <span>⚙️</span> 设置
       </button>
@@ -604,6 +642,7 @@
     let isLoggedIn = false;
     let currentUser = null;
     let isAdmin = false;
+    let userHomePath = '';  // 用户的默认家目录路径
     
     // 图标缓存：存储已检查过的文件名与图标路径的映射
     const iconCache = new Map();
@@ -616,6 +655,7 @@
     const userDisplayArea = document.getElementById('userDisplayArea');
     const logoutBtn = document.getElementById('logoutButton');
     const loginLink = document.getElementById('loginLink');
+    const homeBtn = document.getElementById('homeButton');
     const messageDiv = document.getElementById('liveMessage');
 
     // 视频播放器相关元素
@@ -1207,6 +1247,43 @@
       if (window.location.pathname !== urlPath) {
         window.history.pushState({}, '', urlPath);
       }
+      
+      // 更新"我的文件夹"按钮的显示状态
+      updateHomeButton();
+    }
+
+    /**
+     * 更新"我的文件夹"按钮的显示状态
+     */
+    function updateHomeButton() {
+      if (isLoggedIn && !isAdmin && userHomePath) {
+        // 普通用户：显示"我的文件夹"按钮，但如果在自己的家目录中则隐藏
+        const isInHome = currentPath === userHomePath || 
+                         currentPath.startsWith(userHomePath + '/');
+        if (isInHome) {
+          homeBtn.style.display = 'none';
+        } else {
+          homeBtn.style.display = 'inline-flex';
+        }
+      } else if (isLoggedIn && isAdmin) {
+        // 管理员：隐藏"我的文件夹"按钮
+        homeBtn.style.display = 'none';
+      } else {
+        // 未登录：隐藏按钮
+        homeBtn.style.display = 'none';
+      }
+    }
+
+    /**
+     * 回到用户的文件夹
+     */
+    function goToHome() {
+      if (userHomePath) {
+        navigateToPath(userHomePath);
+        showMessage('success', '已回到你的文件夹');
+      } else {
+        showMessage('error', '无法确定你的文件夹位置');
+      }
     }
 
     /**
@@ -1243,8 +1320,26 @@
               showMessage('error', '请先登录');
               gridContainer.innerHTML = '<div class="empty-state">🔒 需要登录才能访问此内容</div>';
             }
+            updateHomeButton();
             return;
           }
+          
+          if (response.status === 403) {
+            const data = await response.json();
+            if (data.redirect) {
+              // 需要重定向到用户的文件夹
+              showMessage('error', data.error || '访问被拒绝，正在跳转到您的文件夹...');
+              setTimeout(() => {
+                navigateToPath(data.redirect);
+              }, 1000);
+              return;
+            }
+            showMessage('error', data.error || '访问被拒绝');
+            gridContainer.innerHTML = '<div class="empty-state">⛔ 访问被拒绝</div>';
+            updateHomeButton();
+            return;
+          }
+          
           throw new Error('服务器响应错误: ' + response.status);
         }
         
@@ -1258,6 +1353,14 @@
           
           renderAppGrid(items, parentPath);
         } else {
+          if (data.redirect) {
+            // 需要重定向
+            showMessage('error', data.error || '正在跳转...');
+            setTimeout(() => {
+              navigateToPath(data.redirect);
+            }, 1000);
+            return;
+          }
           showMessage('error', data.error || '无法加载文件列表');
           gridContainer.innerHTML = '<div class="empty-state">⚠️ 加载失败</div>';
         }
@@ -1266,6 +1369,8 @@
         showMessage('error', '网络错误，无法获取文件列表');
         gridContainer.innerHTML = '<div class="empty-state">⚠️ 连接错误，请检查网络</div>';
       }
+      
+      updateHomeButton();
     }
 
     /**
@@ -1282,17 +1387,23 @@
         currentUser = data.user || null;
         isAdmin = data.is_admin || false;
         
-        if (isLoggedIn && data.default_path && !currentPath) {
-          currentPath = data.default_path;
-          renderPathNav(currentPath);
+        if (isLoggedIn && data.default_path) {
+          userHomePath = data.default_path;
+          if (!currentPath || currentPath === '') {
+            currentPath = userHomePath;
+          }
+        } else {
+          userHomePath = '';
         }
       } catch (e) {
         console.error('检查认证失败:', e);
         isLoggedIn = false;
         currentUser = null;
         isAdmin = false;
+        userHomePath = '';
       }
       updateUserUI();
+      updateHomeButton();
     }
 
     /**
@@ -1338,10 +1449,12 @@
           isLoggedIn = false;
           currentUser = null;
           isAdmin = false;
+          userHomePath = '';
           currentPath = '';
           updateUserUI();
           renderPathNav('');
           showMessage('success', '已成功退出登录');
+          updateHomeButton();
           await loadDirectory();
         } else {
           showMessage('error', '退出失败');
@@ -1360,11 +1473,17 @@
       currentPath = urlPath === '/' ? '' : urlPath.replace(/^\//, '');
       renderPathNav(currentPath);
       loadDirectory();
+      updateHomeButton();
     });
 
     // 绑定退出按钮
     if (logoutBtn) {
       logoutBtn.addEventListener('click', performLogout);
+    }
+
+    // 绑定"我的文件夹"按钮
+    if (homeBtn) {
+      homeBtn.addEventListener('click', goToHome);
     }
 
     /**

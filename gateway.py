@@ -102,7 +102,7 @@ file_config = {
         'port': '5000'
     },
     'directory': {
-        'root': ''
+        'root': './public'
     },
     'ssl': {
         'enabled': 'false',
@@ -115,8 +115,8 @@ file_config = {
     'security': {
         'max_content_length_mb': '100',
         'session_lifetime_hours': '24',
-        'rate_limit_default': '2000 per day;500 per hour;50 per minute;10 per second',  # 默认为空，表示无限流
-        'rate_limit_enabled': 'false'  # 新增：是否启用限流
+        'rate_limit_enabled': 'false',
+        'rate_limit_default': ''
     },
     'proxy': {
         'enabled': 'true',
@@ -193,11 +193,10 @@ rate_limit_enabled = file_config['security'].get('rate_limit_enabled', 'false').
 rate_limit_config = file_config['security'].get('rate_limit_default', '')
 
 if rate_limit_enabled and rate_limit_config and rate_limit_config.strip():
-    # 解析配置，支持分号分隔的多个限制
     limits = [limit.strip() for limit in rate_limit_config.split(';') if limit.strip()]
     logger.info(f"限流已启用，限制规则: {limits}")
 else:
-    limits = []  # 无限制
+    limits = []
     logger.info("限流已禁用")
 
 try:
@@ -282,82 +281,98 @@ def get_media_mime_type(filename):
 def check_file_access(file_path, operation='read'):
     """
     检查用户是否有权限访问指定文件/目录
-    返回 (has_access, error_message)
+    返回 (has_access, error_message, redirect_path)
     """
-    if 'user_id' not in session:
-        return False, "请先登录"
-    
-    user_id = session['user_id']
-    username = session['username']
-    
-    # Admin 用户（user_id == 1）有完全访问权限
-    if user_id == 1:
-        return True, None
-    
-    # 普通用户：只能访问 users/用户名/ 目录下的内容
     # 获取相对于根目录的路径
     try:
         rel_path = os.path.relpath(file_path, HTML_ROOT_DIR)
     except ValueError:
-        return False, "无效的路径"
-    
-    # 如果路径是 '.'，表示根目录，普通用户不能访问根目录
-    if rel_path == '.':
-        return False, "普通用户只能访问自己的文件夹"
+        return False, "无效的路径", None
     
     # 标准化路径（使用正斜杠）
     rel_path = rel_path.replace('\\', '/')
+    
+    # 如果路径是 '.'，表示根目录
+    if rel_path == '.':
+        # 所有人都可以访问根目录
+        return True, None, None
+    
     path_parts = rel_path.split('/')
     
-    # 检查第一级目录是否是 'users'
-    if len(path_parts) < 1 or path_parts[0] != 'users':
-        return False, f"普通用户只能访问 users 目录下的内容"
+    # 检查是否访问 users 目录
+    if len(path_parts) >= 1 and path_parts[0] == 'users':
+        # 未登录用户不能访问 users 目录
+        if 'user_id' not in session:
+            return False, "请先登录后访问 users 目录", None
+        
+        user_id = session['user_id']
+        username = session['username']
+        
+        # Admin 用户可以访问所有 users 目录
+        if user_id == 1:
+            return True, None, None
+        
+        # 普通用户：只能访问自己的目录
+        if len(path_parts) >= 2:
+            target_username = path_parts[1]
+            if target_username == username:
+                return True, None, None
+            else:
+                # 重定向到自己的目录
+                redirect_path = f"users/{username}"
+                return False, f"您只能访问自己的文件夹 (users/{username}/)", redirect_path
+        else:
+            # 访问 users 根目录，重定向到自己的目录
+            redirect_path = f"users/{username}"
+            return False, f"您只能访问自己的文件夹 (users/{username}/)", redirect_path
     
-    # 检查第二级目录是否是用户自己的用户名
-    if len(path_parts) < 2 or path_parts[1] != username:
-        return False, f"普通用户只能访问自己用户名对应的文件夹 (users/{username}/)"
-    
-    return True, None
+    # 非 users 目录（如 public），所有人都可以访问
+    return True, None, None
 
 def get_user_accessible_path(requested_path):
     """
     获取用户可访问的路径
-    未登录: 返回请求路径（但限制不能访问 users 目录）
-    Admin: 返回原始路径
-    普通用户: 确保路径在 users/用户名/ 下
+    返回 (accessible_path, redirect_path, error_message)
     """
-    # 未登录用户：可以访问根目录，但不能访问 users 目录
-    if 'user_id' not in session:
-        if requested_path and requested_path.strip():
-            # 标准化路径
-            check_path = requested_path.strip().lstrip('/').replace('\\', '/')
-            # 检查是否尝试访问 users 目录
-            if check_path == 'users' or check_path.startswith('users/'):
-                return None, "未登录用户不能访问 users 目录"
-        return requested_path, None
+    if not requested_path:
+        requested_path = ''
     
-    user_id = session['user_id']
-    username = session['username']
-    
-    # Admin 用户可以访问任何路径
-    if user_id == 1:
-        return requested_path, None
-    
-    # 普通用户：确保路径在 users/用户名/ 下
-    # 如果请求的是 users 目录但不是自己的，重定向
-    if requested_path is None or requested_path == '':
-        # 访问根目录，重定向到用户自己的目录
-        return f"users/{username}", None
-    
-    # 标准化请求路径
+    # 标准化路径
     requested_path = requested_path.lstrip('/')
+    if requested_path == '':
+        return '', None, None
+    
     path_parts = requested_path.split('/')
     
-    # 如果请求路径不以 users/用户名 开头，重定向
-    if len(path_parts) < 2 or path_parts[0] != 'users' or path_parts[1] != username:
-        return f"users/{username}", None
+    # 检查是否访问 users 目录
+    if len(path_parts) >= 1 and path_parts[0] == 'users':
+        # 未登录用户不能访问 users 目录
+        if 'user_id' not in session:
+            return None, None, "请先登录后访问 users 目录"
+        
+        user_id = session['user_id']
+        username = session['username']
+        
+        # Admin 用户可以访问所有 users 目录
+        if user_id == 1:
+            return requested_path, None, None
+        
+        # 普通用户：只能访问自己的目录
+        if len(path_parts) >= 2:
+            target_username = path_parts[1]
+            if target_username == username:
+                return requested_path, None, None
+            else:
+                # 重定向到自己的目录
+                redirect_path = f"users/{username}"
+                return None, redirect_path, f"您只能访问自己的文件夹 (users/{username}/)"
+        else:
+            # 访问 users 根目录，重定向到自己的目录
+            redirect_path = f"users/{username}"
+            return None, redirect_path, f"您只能访问自己的文件夹 (users/{username}/)"
     
-    return requested_path, None
+    # 非 users 目录，所有人都可以访问
+    return requested_path, None, None
 
 # ==================== WebSocket 代理管理 ====================
 class WebSocketProxyManager:
@@ -771,17 +786,19 @@ def file_access_required(f):
     """装饰器：检查文件访问权限"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return jsonify({'error': '请先登录'}), 401
-        
         # 获取文件路径参数
         file_path_param = kwargs.get('file_path') or kwargs.get('folder_path') or kwargs.get('path')
         
         if file_path_param:
             try:
                 full_path = safe_path_join(HTML_ROOT_DIR, file_path_param)
-                has_access, error_msg = check_file_access(full_path)
+                has_access, error_msg, redirect_path = check_file_access(full_path)
                 if not has_access:
+                    if redirect_path:
+                        return jsonify({
+                            'error': error_msg,
+                            'redirect': redirect_path
+                        }), 403
                     return jsonify({'error': error_msg}), 403
             except APIError as e:
                 return jsonify({'error': e.message}), e.status_code
@@ -1012,22 +1029,25 @@ def get_file_list():
     try:
         requested_path = request.args.get('path', '')
         
-        if 'user_id' not in session:
-            if requested_path and requested_path.strip():
-                check_path = requested_path.strip().lstrip('/').replace('\\', '/')
-                if check_path == 'users' or check_path.startswith('users/'):
-                    return jsonify({
-                        'success': False, 
-                        'error': '请先登录后访问 users 目录',
-                        'require_login': True
-                    }), 401
-            path = requested_path if requested_path else ''
-        else:
-            accessible_path, redirect_msg = get_user_accessible_path(requested_path)
-            if redirect_msg and requested_path and accessible_path != requested_path:
-                logger.info(f"Redirecting user {session['username']} from {requested_path} to {accessible_path}")
-            path = accessible_path
+        # 获取可访问路径
+        accessible_path, redirect_path, error_msg = get_user_accessible_path(requested_path)
         
+        if error_msg:
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'require_login': 'user_id' not in session
+            }), 401 if 'user_id' not in session else 403
+        
+        if redirect_path:
+            # 需要重定向
+            return jsonify({
+                'success': False,
+                'error': error_msg,
+                'redirect': redirect_path
+            }), 403
+        
+        path = accessible_path if accessible_path else ''
         full_path = safe_path_join(HTML_ROOT_DIR, path)
         
         if not os.path.exists(full_path):
@@ -1043,11 +1063,9 @@ def get_file_list():
             if item == '__pycache__':
                 continue
             
-            if 'user_id' not in session:
-                if item == 'users':
-                    continue
-                if path == '' and item.startswith('.'):
-                    continue
+            # 如果是 users 目录，检查访问权限
+            if item == 'users' and 'user_id' not in session:
+                continue
             
             item_stat = os.stat(item_path)
             is_dir = os.path.isdir(item_path)
@@ -1123,15 +1141,17 @@ def stream_video(file_path):
     try:
         full_path = safe_path_join(HTML_ROOT_DIR, file_path)
         
-        # 检查用户权限
-        if 'user_id' in session:
-            has_access, error_msg = check_file_access(full_path, 'read')
-            if not has_access:
-                return jsonify({'error': error_msg}), 403
-        else:
-            # 未登录用户不能访问 users 目录
-            if 'users' in file_path.replace('\\', '/').split('/'):
-                return jsonify({'error': '请先登录后访问 users 目录'}), 401
+        # 检查权限
+        has_access, error_msg, redirect_path = check_file_access(full_path)
+        if not has_access:
+            if redirect_path:
+                return jsonify({
+                    'error': error_msg,
+                    'redirect': redirect_path
+                }), 403
+            if 'user_id' not in session:
+                return jsonify({'error': '请先登录后访问此文件'}), 401
+            return jsonify({'error': error_msg}), 403
         
         if not os.path.exists(full_path):
             raise APIError(f'文件不存在: {file_path}', 404)
@@ -1222,11 +1242,17 @@ def get_video_info(file_path):
     try:
         full_path = safe_path_join(HTML_ROOT_DIR, file_path)
         
-        # 检查用户权限
-        if 'user_id' in session:
-            has_access, error_msg = check_file_access(full_path, 'read')
-            if not has_access:
-                return jsonify({'error': error_msg}), 403
+        # 检查权限
+        has_access, error_msg, redirect_path = check_file_access(full_path)
+        if not has_access:
+            if redirect_path:
+                return jsonify({
+                    'error': error_msg,
+                    'redirect': redirect_path
+                }), 403
+            if 'user_id' not in session:
+                return jsonify({'error': '请先登录后访问此文件'}), 401
+            return jsonify({'error': error_msg}), 403
         
         if not os.path.exists(full_path):
             raise APIError(f'文件不存在: {file_path}', 404)
@@ -1253,7 +1279,7 @@ def get_video_info(file_path):
             'is_audio': is_audio_file(full_path),
             'modified': modified_time.strftime('%Y-%m-%d %H:%M:%S'),
             'stream_url': f'/video/{file_path}',
-            'download_url': f'/download/{file_path}' if 'user_id' in session else None
+            'download_url': f'/{file_path}?download=true' if 'user_id' in session else None
         }
         
         return jsonify(video_info)
@@ -1272,11 +1298,14 @@ def get_video_list():
     try:
         path = request.args.get('path', '')
         
-        if 'user_id' not in session:
-            if path and 'users' in path.replace('\\', '/').split('/'):
-                return jsonify({'error': '请先登录后访问 users 目录'}), 401
+        # 检查路径权限
+        accessible_path, redirect_path, error_msg = get_user_accessible_path(path)
+        if error_msg:
+            return jsonify({'error': error_msg}), 401 if 'user_id' not in session else 403
+        if redirect_path:
+            return jsonify({'error': error_msg, 'redirect': redirect_path}), 403
         
-        full_path = safe_path_join(HTML_ROOT_DIR, path) if path else HTML_ROOT_DIR
+        full_path = safe_path_join(HTML_ROOT_DIR, accessible_path) if accessible_path else HTML_ROOT_DIR
         
         if not os.path.exists(full_path):
             raise APIError(f'目录不存在: {path}', 404)
@@ -1286,6 +1315,13 @@ def get_video_list():
         for root, dirs, files in os.walk(full_path):
             # 跳过__pycache__目录
             dirs[:] = [d for d in dirs if d != '__pycache__']
+            
+            # 如果是 users 目录且用户不是admin，只扫描自己的目录
+            rel_root = os.path.relpath(root, HTML_ROOT_DIR)
+            if rel_root.startswith('users/') and 'user_id' in session and session.get('user_id') != 1:
+                parts = rel_root.split('/')
+                if len(parts) >= 2 and parts[1] != session.get('username'):
+                    continue
             
             for file in files:
                 if is_video_file(file):
@@ -1326,20 +1362,20 @@ def get_video_list():
 @filesystem_required
 def serve_html(path=''):
     try:
-        if 'user_id' in session:
-            accessible_path, redirect_msg = get_user_accessible_path(path)
-            if redirect_msg and path and accessible_path != path:
-                return redirect(f'/{accessible_path}')
-            real_path = safe_path_join(HTML_ROOT_DIR, accessible_path)
-        else:
-            if path and path.strip():
-                check_path = path.strip().lstrip('/').replace('\\', '/')
-                if check_path == 'users' or check_path.startswith('users/'):
-                    return jsonify({
-                        'error': '请先登录后访问 users 目录', 
-                        'require_login': True
-                    }), 401
-            real_path = safe_path_join(HTML_ROOT_DIR, path if path else '')
+        # 获取可访问路径
+        accessible_path, redirect_path, error_msg = get_user_accessible_path(path)
+        
+        if error_msg:
+            if 'user_id' not in session:
+                return jsonify({'error': error_msg, 'require_login': True}), 401
+            if redirect_path:
+                return redirect(f'/{redirect_path}')
+            return jsonify({'error': error_msg}), 403
+        
+        if redirect_path:
+            return redirect(f'/{redirect_path}')
+        
+        real_path = safe_path_join(HTML_ROOT_DIR, accessible_path if accessible_path else '')
         
         if not os.path.exists(real_path):
             return "路径不存在", 404
@@ -1349,8 +1385,11 @@ def serve_html(path=''):
                 if 'user_id' not in session:
                     return jsonify({'error': '请先登录后下载文件'}), 401
                 
-                has_access, error_msg = check_file_access(real_path, 'download')
+                # 检查下载权限
+                has_access, error_msg, redirect_path = check_file_access(real_path)
                 if not has_access:
+                    if redirect_path:
+                        return jsonify({'error': error_msg, 'redirect': redirect_path}), 403
                     return jsonify({'error': error_msg}), 403
                 
                 log_file_operation(
@@ -1386,14 +1425,14 @@ def serve_html(path=''):
                         # 注入视频信息
                         video_data = {
                             'name': file_name,
-                            'path': path,
+                            'path': accessible_path,
                             'size': file_size,
                             'size_mb': round(file_size / (1024 * 1024), 2),
                             'mime_type': mime_type,
                             'is_video': is_video_file(real_path),
                             'is_audio': is_audio_file(real_path),
-                            'stream_url': f'/video/{path}',
-                            'download_url': f'/{path}?download=true' if 'user_id' in session else None
+                            'stream_url': f'/video/{accessible_path}',
+                            'download_url': f'/{accessible_path}?download=true' if 'user_id' in session else None
                         }
                         
                         script_tag = f'''
@@ -1446,11 +1485,12 @@ def serve_html(path=''):
             items = []
             for item in os.listdir(real_path):
                 item_path = os.path.join(real_path, item)
-                if 'user_id' not in session:
-                    if item == 'users' or item.startswith('.'):
-                        continue
                 
-                item_rel_path = os.path.join(path, item) if path else item
+                # 如果是 users 目录且未登录，跳过
+                if item == 'users' and 'user_id' not in session:
+                    continue
+                
+                item_rel_path = os.path.join(accessible_path, item) if accessible_path else item
                 
                 item_type = 'file'
                 if os.path.isdir(item_path):
@@ -1478,12 +1518,12 @@ def serve_html(path=''):
         for item in os.listdir(real_path):
             item_path = os.path.join(real_path, item)
             
-            if 'user_id' not in session:
-                if item == 'users' or item.startswith('.'):
-                    continue
+            # 如果是 users 目录且未登录，跳过
+            if item == 'users' and 'user_id' not in session:
+                continue
             
-            if path:
-                item_rel_path = os.path.join(path, item)
+            if accessible_path:
+                item_rel_path = os.path.join(accessible_path, item)
             else:
                 item_rel_path = item
             
@@ -1509,9 +1549,9 @@ def serve_html(path=''):
         items.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
         
         initial_data = {
-            'currentPath': path or '',
+            'currentPath': accessible_path or '',
             'files': items,
-            'parentPath': os.path.dirname(path) if path and os.path.dirname(path) != '/' else '',
+            'parentPath': os.path.dirname(accessible_path) if accessible_path and os.path.dirname(accessible_path) != '/' else '',
             'filesystemEnabled': FILESYSTEM_ENABLED,
             'isAuthenticated': 'user_id' in session,
             'username': session.get('username', ''),
@@ -1657,6 +1697,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
+        # 创建用户目录
         user_folder = os.path.join(HTML_ROOT_DIR, 'users', username)
         os.makedirs(user_folder, exist_ok=True)
         logger.info(f"Created user folder for {username}: {user_folder}")
@@ -1764,7 +1805,7 @@ def check_auth():
         'filesystem_enabled': FILESYSTEM_ENABLED, 
         'proxy_enabled': PROXY_ENABLED,
         'can_access_users': False,
-        'message': '未登录用户只能浏览公开文件'
+        'message': '未登录用户可以访问public目录'
     })
 
 @app.route('/api/change-password', methods=['POST'])
@@ -2172,12 +2213,18 @@ if __name__ == '__main__':
         print(f"允许代理的目标: {', '.join(PROXY_ALLOWED_TARGETS)}")
         print(f"WebSocket代理: ✅ 支持 (通过 Socket.IO)")
     
-    # 显示限流状态
     if rate_limit_enabled and limits:
         print(f"限流功能: ✅ 启用 (限制规则: {', '.join(limits)})")
     else:
         print(f"限流功能: ❌ 禁用")
     print("="*60)
+    
+    print("\n📁 目录访问权限:")
+    print(f"- 📂 根目录: {os.path.abspath(HTML_ROOT_DIR)} (所有人可访问)")
+    print(f"- 📂 public 目录: {os.path.abspath(os.path.join(HTML_ROOT_DIR, 'public')) if os.path.exists(os.path.join(HTML_ROOT_DIR, 'public')) else '未创建'} (所有人可访问)")
+    print("- 🔐 users 目录: 需要登录后才能访问")
+    print("  - 👤 普通用户: 只能访问自己的子目录 (users/用户名/)")
+    print("  - 👑 管理员 (admin): 可以访问所有 users 子目录")
     
     print("\n🎬 视频播放功能:")
     print("- ✅ 支持流式播放 (HTTP Range请求)")
@@ -2188,13 +2235,6 @@ if __name__ == '__main__':
     print("- 📊 视频信息API: /api/video/info/{文件路径}")
     print("- 📋 视频列表API: /api/videos")
     
-    print("\n🔒 权限控制:")
-    print("- 🌐 任何人都可以访问根目录（无需登录）")
-    print("- 🔐 未登录用户不能访问 users 目录")
-    print("- 👤 管理员 (admin) 可以操作所有文件")
-    print("- 👤 普通用户只能操作 users/用户名/ 目录下的文件")
-    print("- 📁 创建用户时会自动创建对应的文件夹")
-    print("- 🔄 普通用户登录后会自动跳转到自己的文件夹")
     print("\n🔒 安全提示:")
     print("- 请务必在生产环境中修改默认管理员密码")
     print("- 生产环境建议使用 HTTPS")
