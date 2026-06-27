@@ -120,7 +120,8 @@ file_config = {
     },
     'proxy': {
         'enabled': 'true',
-        'allowed_targets': 'http://localhost:5001,ws://localhost:5002,http://localhost:5200,http://localhost:8000,ws://localhost:8765' 
+        'allowed_targets': 'http://localhost:5001,ws://localhost:5002,http://localhost:5200,http://localhost:8000,ws://localhost:8765',
+        'forward_user_headers': 'true'
     }
 }
 
@@ -186,7 +187,9 @@ PROXY_ENABLED = file_config['proxy'].get('enabled', 'true').lower() == 'true'
 PROXY_ALLOWED_TARGETS = []
 if file_config['proxy'].get('allowed_targets'):
     PROXY_ALLOWED_TARGETS = [target.strip() for target in file_config['proxy']['allowed_targets'].split(',') if target.strip()]
+PROXY_FORWARD_USER_HEADERS = file_config['proxy'].get('forward_user_headers', 'true').lower() == 'true'
 logger.info(f"Proxy enabled: {PROXY_ENABLED}, allowed targets: {PROXY_ALLOWED_TARGETS}")
+logger.info(f"Forward user headers: {PROXY_FORWARD_USER_HEADERS}")
 
 # ==================== 初始化 Limiter（从配置文件读取） ====================
 rate_limit_enabled = file_config['security'].get('rate_limit_enabled', 'false').lower() == 'true'
@@ -841,8 +844,41 @@ def proxy_request(target):
             if key.lower() not in excluded_headers:
                 headers[key] = value
         
-        headers['X-Proxy-User'] = session.get('username', 'unknown')
-        headers['X-Proxy-User-ID'] = str(session.get('user_id', '0'))
+        # ========== 添加用户身份信息到请求头 ==========
+        if PROXY_FORWARD_USER_HEADERS and 'user_id' in session:
+            user_id = session.get('user_id')
+            username = session.get('username')
+            is_admin = session.get('is_admin', False)
+            
+            # 标准用户信息头
+            headers['X-Proxy-User'] = str(username) if username else 'unknown'
+            headers['X-Proxy-User-ID'] = str(user_id) if user_id else '0'
+            headers['X-Proxy-Is-Admin'] = 'true' if is_admin else 'false'
+            
+            # 额外的用户信息头（方便后端服务获取）
+            headers['X-Authenticated-User'] = str(username) if username else ''
+            headers['X-Authenticated-User-Id'] = str(user_id) if user_id else ''
+            headers['X-User-Role'] = 'admin' if is_admin else 'user'
+            
+            # 原始IP地址（如果代理链中有）
+            if request.headers.get('X-Forwarded-For'):
+                headers['X-Forwarded-For'] = request.headers.get('X-Forwarded-For')
+            elif request.remote_addr:
+                headers['X-Real-IP'] = request.remote_addr
+            
+            # 用户会话信息
+            headers['X-Session-ID'] = request.cookies.get('session', '')
+            
+            logger.info(f"Forwarding user info to {target}: user={username}, id={user_id}, is_admin={is_admin}")
+        elif PROXY_FORWARD_USER_HEADERS:
+            # 未登录用户
+            headers['X-Proxy-User'] = 'anonymous'
+            headers['X-Proxy-User-ID'] = '0'
+            headers['X-Proxy-Is-Admin'] = 'false'
+            headers['X-Authenticated-User'] = ''
+            headers['X-Authenticated-User-Id'] = ''
+            headers['X-User-Role'] = 'anonymous'
+            logger.info(f"Forwarding anonymous user info to {target}")
         
         query_params = request.args.to_dict()
         data = request.get_data() if request.get_data() else None
@@ -979,8 +1015,21 @@ def get_proxy_status():
         'enabled': PROXY_ENABLED,
         'allowed_targets': PROXY_ALLOWED_TARGETS,
         'user': session.get('username', 'unknown'),
+        'user_id': session.get('user_id', 0),
+        'is_admin': session.get('is_admin', False),
         'websocket_supported': True,
-        'stream_supported': True
+        'stream_supported': True,
+        'forward_user_headers': PROXY_FORWARD_USER_HEADERS,
+        'forwarded_headers': [
+            'X-Proxy-User',
+            'X-Proxy-User-ID', 
+            'X-Proxy-Is-Admin',
+            'X-Authenticated-User',
+            'X-Authenticated-User-Id',
+            'X-User-Role',
+            'X-Real-IP',
+            'X-Session-ID'
+        ] if PROXY_FORWARD_USER_HEADERS else []
     })
 
 @app.route('/api/proxy/test', methods=['POST'])
@@ -1629,7 +1678,8 @@ def health_check():
             'proxy': {
                 'enabled': PROXY_ENABLED, 
                 'allowed_targets': PROXY_ALLOWED_TARGETS, 
-                'websocket_supported': True
+                'websocket_supported': True,
+                'forward_user_headers': PROXY_FORWARD_USER_HEADERS
             },
             'ssl': {
                 'enabled': SSL_ENABLED or is_https,
@@ -2148,7 +2198,8 @@ def get_system_stats():
                 'proxy': {
                     'enabled': PROXY_ENABLED, 
                     'allowed_targets': PROXY_ALLOWED_TARGETS, 
-                    'websocket_supported': True
+                    'websocket_supported': True,
+                    'forward_user_headers': PROXY_FORWARD_USER_HEADERS
                 },
                 'media': {
                     'video_formats_supported': list(VIDEO_MIME_TYPES.keys()),
@@ -2212,6 +2263,7 @@ if __name__ == '__main__':
     if PROXY_ENABLED:
         print(f"允许代理的目标: {', '.join(PROXY_ALLOWED_TARGETS)}")
         print(f"WebSocket代理: ✅ 支持 (通过 Socket.IO)")
+        print(f"转发用户信息: {'✅ 启用' if PROXY_FORWARD_USER_HEADERS else '❌ 禁用'}")
     
     if rate_limit_enabled and limits:
         print(f"限流功能: ✅ 启用 (限制规则: {', '.join(limits)})")
@@ -2225,6 +2277,17 @@ if __name__ == '__main__':
     print("- 🔐 users 目录: 需要登录后才能访问")
     print("  - 👤 普通用户: 只能访问自己的子目录 (users/用户名/)")
     print("  - 👑 管理员 (admin): 可以访问所有 users 子目录")
+    
+    print("\n🔄 代理用户信息转发:")
+    print("- 📤 转发以下HTTP头到目标服务:")
+    print("  - X-Proxy-User: 用户名")
+    print("  - X-Proxy-User-ID: 用户ID")
+    print("  - X-Proxy-Is-Admin: 是否为管理员")
+    print("  - X-Authenticated-User: 认证用户名")
+    print("  - X-Authenticated-User-Id: 认证用户ID")
+    print("  - X-User-Role: 用户角色 (admin/user/anonymous)")
+    print("  - X-Real-IP: 客户端真实IP")
+    print("  - X-Session-ID: 会话ID")
     
     print("\n🎬 视频播放功能:")
     print("- ✅ 支持流式播放 (HTTP Range请求)")
